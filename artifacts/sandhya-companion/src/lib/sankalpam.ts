@@ -18,13 +18,34 @@
 const SRISHAILAM = { lat: 16.0736, lng: 78.8686 };
 
 /**
- * Bounding box for the Andhra Pradesh + Telangana region.
- * If the user's location is inside this box, we add the traditional
- * "Kṛṣṇā Godāvaryoḥ madhyadeśe" (land associated with those rivers).
+ * Known Andhra Pradesh + Telangana cities that always get the
+ * "Kṛṣṇā Godāvaryoḥ madhyadeśe" river reference.
+ * This is the primary check; the geographic fallback box below is secondary.
  */
-const ANDHRA_TELANGANA = {
-  latMin: 12.5, latMax: 19.5,
-  lngMin: 76.5, lngMax: 84.5,
+const ANDHRA_TELANGANA_CITIES = new Set([
+  // Telangana
+  "hyderabad", "secunderabad", "warangal", "karimnagar", "nizamabad",
+  "khammam", "nalgonda", "mahabubnagar", "medak", "adilabad", "sangareddy",
+  "suryapet", "bhadradri", "mancherial", "jagtial", "rajanna", "vikarabad",
+  "yadadri", "kamareddy", "nagarkurnool", "narayanpet", "wanaparthy",
+  // Andhra Pradesh
+  "vijayawada", "vijayavada", "visakhapatnam", "vishakhapatnam", "vizag",
+  "tirupati", "guntur", "rajahmundry", "nellore", "kurnool", "kadapa",
+  "anantapur", "eluru", "ongole", "srikakulam", "vizianagaram",
+  "kakinada", "bhimavaram", "tadepalligudem", "tenali", "narasaraopet",
+  "chittoor", "hindupur", "proddatur", "dharmavaram", "madanapalle",
+  "guntakal", "adoni", "nandyal", "tadipatri", "chilakaluripet",
+  "amaravati", "mangalagiri", "puttaparthi", "srikalahasti",
+]);
+
+/**
+ * Tighter geographic fallback for cities not in the lookup table above.
+ * Lat >= 15°N avoids Bangalore (12.97°N) and Chennai (13.08°N).
+ * Lng >= 78°E avoids the overlap with eastern Karnataka.
+ */
+const ANDHRA_TELANGANA_FALLBACK = {
+  latMin: 15.0, latMax: 19.9,
+  lngMin: 78.0, lngMax: 84.7,
 };
 
 // ─── Bearing maths ────────────────────────────────────────────────────────────
@@ -230,14 +251,19 @@ export function buildSankalpamDesha(
     bearingToSanskritDir(computeBearing(SRISHAILAM, { lat, lng }));
   lines.push(`Śrīśailasya ${dir} digbhāge`);
 
-  // 3. Kṛṣṇā-Godāvarī reference only for Andhra / Telangana region
-  const inAndhraTelangana =
-    lat >= ANDHRA_TELANGANA.latMin &&
-    lat <= ANDHRA_TELANGANA.latMax &&
-    lng >= ANDHRA_TELANGANA.lngMin &&
-    lng <= ANDHRA_TELANGANA.lngMax;
+  // 3. Kṛṣṇā-Godāvarī reference: known AP/Telangana cities take priority;
+  //    unknown cities fall back to a tighter geographic box that excludes
+  //    Bangalore, Chennai and other bordering cities.
+  const cityKey = city.toLowerCase().trim();
+  const isKnownAPCity = ANDHRA_TELANGANA_CITIES.has(cityKey) ||
+    [...ANDHRA_TELANGANA_CITIES].some(k => cityKey.startsWith(k) || k.startsWith(cityKey));
+  const inFallbackBox =
+    lat >= ANDHRA_TELANGANA_FALLBACK.latMin &&
+    lat <= ANDHRA_TELANGANA_FALLBACK.latMax &&
+    lng >= ANDHRA_TELANGANA_FALLBACK.lngMin &&
+    lng <= ANDHRA_TELANGANA_FALLBACK.lngMax;
 
-  if (inAndhraTelangana) {
+  if (isKnownAPCity || inFallbackBox) {
     lines.push("Kṛṣṇā Godāvaryoḥ madhyadeśe");
   }
 

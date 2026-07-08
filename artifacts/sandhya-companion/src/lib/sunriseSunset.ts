@@ -85,6 +85,25 @@ export function formatTime(date: Date): string {
   });
 }
 
+/** HH:MM a.m./p.m. range for each Sandhya session, computed from sun times. */
+export interface SessionWindows {
+  pratah: string;    // 30 min before sunrise → 2 h after sunrise
+  madhyahna: string; // 30 min before solar noon → 30 min after
+  sayam: string;     // 2 h before sunset → 30 min after sunset
+}
+
+export function getSessionWindows(sunTimes: SunTimes): SessionWindows {
+  const MIN  = 60 * 1000;
+  const HOUR = 60 * MIN;
+  const fmt  = (d: Date) => formatTime(d);
+
+  return {
+    pratah: `${fmt(new Date(sunTimes.sunrise.getTime()  - 30 * MIN))} – ${fmt(new Date(sunTimes.sunrise.getTime()  + 2  * HOUR))}`,
+    madhyahna: `${fmt(new Date(sunTimes.solarNoon.getTime() - 30 * MIN))} – ${fmt(new Date(sunTimes.solarNoon.getTime() + 30 * MIN))}`,
+    sayam: `${fmt(new Date(sunTimes.sunset.getTime()   - 2  * HOUR))} – ${fmt(new Date(sunTimes.sunset.getTime()   + 30 * MIN))}`,
+  };
+}
+
 /** Determine which Sandhya session is currently active based on sun times. */
 export type ActiveSession = "pratah" | "madhyahna" | "sayam" | "none";
 

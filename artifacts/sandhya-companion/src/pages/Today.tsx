@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { MapPin, Sunrise, Sunset, ChevronDown, ChevronUp, Check, Loader2 } from "lucide-react";
-import { fetchSunTimes, getActiveSession, formatTime, type SunTimes, type ActiveSession } from "@/lib/sunriseSunset";
+import { MapPin, Sunrise, Sunset, Check, Loader2 } from "lucide-react";
+import { fetchSunTimes, getActiveSession, getSessionWindows, formatTime, type SunTimes, type ActiveSession, type SessionWindows } from "@/lib/sunriseSunset";
 import { calculatePanchang, type PanchangData } from "@/lib/panchang";
 import { buildSankalpamDesha, type SankalpamDesha } from "@/lib/sankalpam";
 import {
@@ -56,7 +56,6 @@ function PracticeSection({
   subtext,
   timeWindow,
   isActive,
-  defaultOpen,
   dateKey,
   sectionData,
   onUpdate
@@ -66,14 +65,12 @@ function PracticeSection({
   subtext: string;
   timeWindow?: string;
   isActive: boolean;
-  defaultOpen: boolean;
   dateKey: string;
   sectionData: any;
   onUpdate: (record: DailyRecord) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [localNotes, setLocalNotes] = useState(sectionData.notes);
-  
+
   useEffect(() => {
     setLocalNotes(sectionData.notes);
   }, [sectionData.notes]);
@@ -99,63 +96,65 @@ function PracticeSection({
   const handleToggleCompleted = () => {
     const updated = toggleCompleted(dateKey, sessionKey);
     onUpdate(updated);
-    if (!sectionData.completed) {
-      setIsOpen(false);
-    }
   };
 
   return (
-    <div className={`rounded-xl border-2 overflow-hidden transition-colors ${isActive ? 'border-primary shadow-sm' : 'border-border'} ${sectionData.completed ? 'bg-muted/50' : 'bg-card'}`}>
-      <button 
-        className={`w-full text-left p-5 flex items-center justify-between ${isActive ? 'bg-primary/10' : ''} ${sectionData.completed ? 'bg-primary/5' : ''}`}
-        onClick={() => setIsOpen(!isOpen)}
-      >
+    <div className={`rounded-xl border-2 overflow-hidden transition-colors ${isActive ? 'border-primary shadow-md' : 'border-border'} ${sectionData.completed ? 'opacity-75' : ''}`}>
+      {/* Header — not collapsible */}
+      <div className={`p-5 flex items-start justify-between ${isActive ? 'bg-primary/10' : 'bg-card'}`}>
         <div>
           <h2 className={`text-2xl font-serif font-bold ${isActive ? 'text-primary' : 'text-foreground'}`}>{title}</h2>
           <div className="text-[17px] text-muted-foreground mt-1">{subtext}</div>
-          {timeWindow && <div className="text-[15px] font-medium text-primary mt-2">{timeWindow}</div>}
+          {timeWindow && (
+            <div className="text-[16px] font-semibold text-primary mt-2 tabular-nums">
+              🕐 {timeWindow}
+            </div>
+          )}
+          {!timeWindow && (
+            <div className="text-[15px] text-muted-foreground/70 mt-2 italic">
+              Set location for exact times
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-3">
-          {sectionData.completed && <div className="text-[15px] font-medium text-primary flex items-center gap-1.5"><Check className="w-5 h-5"/> Completed</div>}
-          <div className="w-8 h-8 rounded-full bg-background border flex items-center justify-center">
-            {isOpen ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
+        {sectionData.completed && (
+          <div className="shrink-0 ml-3 flex items-center gap-1.5 text-[15px] font-semibold text-primary bg-primary/10 px-3 py-1.5 rounded-full">
+            <Check className="w-4 h-4" /> Done
           </div>
-        </div>
-      </button>
+        )}
+      </div>
 
-      {isOpen && (
-        <div className="p-5 border-t-2 border-border space-y-8 bg-card">
-          <div className="space-y-1">
-            {CHECKLIST_ITEMS.map((item) => (
-              <PracticeCheckbox 
-                key={item.key}
-                name={item.name}
-                subtitle={item.subtitle}
-                checked={!!sectionData.checks[item.key]}
-                onChange={() => handleToggleCheck(item.key)}
-              />
-            ))}
-          </div>
-
-          <div className="space-y-3">
-            <label className="text-[15px] font-bold text-muted-foreground uppercase tracking-wider">Notes for this practice</label>
-            <textarea 
-              value={localNotes}
-              onChange={handleNotesChange}
-              placeholder="Any specific thoughts, delays, or intentions..."
-              className="w-full min-h-[100px] p-4 rounded-md border-2 border-input bg-background text-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary placeholder:text-muted-foreground/60"
-              rows={3}
+      {/* Content — always visible */}
+      <div className="p-5 border-t-2 border-border space-y-8 bg-card">
+        <div className="space-y-1">
+          {CHECKLIST_ITEMS.map((item) => (
+            <PracticeCheckbox
+              key={item.key}
+              name={item.name}
+              subtitle={item.subtitle}
+              checked={!!sectionData.checks[item.key]}
+              onChange={() => handleToggleCheck(item.key)}
             />
-          </div>
-
-          <button 
-            onClick={handleToggleCompleted}
-            className={`w-full py-4 rounded-lg text-[19px] font-bold transition-colors ${sectionData.completed ? 'bg-background text-muted-foreground border-2 border-input hover:bg-muted' : 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'}`}
-          >
-            {sectionData.completed ? "Mark as Incomplete" : "Mark as Completed"}
-          </button>
+          ))}
         </div>
-      )}
+
+        <div className="space-y-3">
+          <label className="text-[15px] font-bold text-muted-foreground uppercase tracking-wider">Notes for this practice</label>
+          <textarea
+            value={localNotes}
+            onChange={handleNotesChange}
+            placeholder="Any specific thoughts, delays, or intentions..."
+            className="w-full min-h-[100px] p-4 rounded-md border-2 border-input bg-background text-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary placeholder:text-muted-foreground/60"
+            rows={3}
+          />
+        </div>
+
+        <button
+          onClick={handleToggleCompleted}
+          className={`w-full py-4 rounded-lg text-[19px] font-bold transition-colors ${sectionData.completed ? 'bg-background text-muted-foreground border-2 border-input hover:bg-muted' : 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'}`}
+        >
+          {sectionData.completed ? "Mark as Incomplete" : "Mark as Completed ✓"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -166,6 +165,7 @@ export default function Today() {
   const [panchang, setPanchang] = useState<PanchangData | null>(null);
   const [sankalpamDesha, setSankalpamDesha] = useState<SankalpamDesha | null>(null);
   const [activeSession, setActiveSession] = useState<ActiveSession>("none");
+  const [sessionWindows, setSessionWindows] = useState<SessionWindows | null>(null);
   const [record, setRecord] = useState<DailyRecord | null>(null);
   const [isLoadingSun, setIsLoadingSun] = useState(false);
   const [sunError, setSunError] = useState<string | null>(null);
@@ -188,6 +188,7 @@ export default function Today() {
         .then(times => {
           setSunTimes(times);
           setActiveSession(getActiveSession(new Date(), times));
+          setSessionWindows(getSessionWindows(times));
         })
         .catch(err => {
           console.error(err);
@@ -284,35 +285,32 @@ export default function Today() {
 
         {record && (
           <div className="space-y-5">
-            <PracticeSection 
+            <PracticeSection
               sessionKey="pratah"
               title="Pratah Sandhya"
               subtext="Morning Practice"
-              timeWindow={sunTimes ? "30 min before sunrise to 2 hours after" : undefined}
+              timeWindow={sessionWindows?.pratah}
               isActive={activeSession === "pratah"}
-              defaultOpen={activeSession === "pratah" || (activeSession === "none" && today.getHours() < 12)}
               dateKey={dateKey}
               sectionData={record.pratah}
               onUpdate={setRecord}
             />
-            <PracticeSection 
+            <PracticeSection
               sessionKey="madhyahna"
               title="Madhyahna Sandhya"
               subtext="Midday Practice"
-              timeWindow={sunTimes ? "Around solar noon ±30 min" : undefined}
+              timeWindow={sessionWindows?.madhyahna}
               isActive={activeSession === "madhyahna"}
-              defaultOpen={activeSession === "madhyahna"}
               dateKey={dateKey}
               sectionData={record.madhyahna}
               onUpdate={setRecord}
             />
-            <PracticeSection 
+            <PracticeSection
               sessionKey="sayam"
               title="Sayam Sandhya"
               subtext="Evening Practice"
-              timeWindow={sunTimes ? "2 hours before sunset" : undefined}
+              timeWindow={sessionWindows?.sayam}
               isActive={activeSession === "sayam"}
-              defaultOpen={activeSession === "sayam"}
               dateKey={dateKey}
               sectionData={record.sayam}
               onUpdate={setRecord}
