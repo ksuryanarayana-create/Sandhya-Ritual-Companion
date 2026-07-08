@@ -5,41 +5,9 @@ import { fetchSunTimes, getActiveSession, getSessionWindows, formatTime, type Su
 import { calculatePanchang, type PanchangData } from "@/lib/panchang";
 import { buildSankalpamDesha, type SankalpamDesha } from "@/lib/sankalpam";
 import {
-  getDailyRecord, toggleCheck, updateNotes, toggleCompleted,
+  getDailyRecord, updateNotes, toggleCompleted,
   toDateKey, type SessionKey, type DailyRecord, type Location, getLocation
 } from "@/lib/storage";
-
-const CHECKLIST_ITEMS = [
-  { key: "achamanam", name: "Achamanam", subtitle: "Sipping water · self-purification" },
-  { key: "pranayamam", name: "Pranayamam", subtitle: "Three-fold breath control" },
-  { key: "sankalpam", name: "Sankalpam", subtitle: "Statement of intention · see panchang above" },
-  { key: "marjanam", name: "Marjanam", subtitle: "Self-sprinkling purification" },
-  { key: "punarmarjanam", name: "Punar Marjanam", subtitle: "Second purification" },
-  { key: "arghyapradam", name: "Arghya Pradam", subtitle: "Water offering to the Sun" },
-  { key: "gayatrijapa", name: "Gayatri Japa", subtitle: "108 repetitions of Gayatri mantra" },
-  { key: "upasthanam", name: "Upasthana Mantram", subtitle: "Sun salutation verses" },
-  { key: "abhivadana", name: "Abhivadana", subtitle: "Self-introduction salutation" }
-];
-
-function PracticeCheckbox({ checked, onChange, name, subtitle }: { checked: boolean, onChange: () => void, name: string, subtitle: string }) {
-  return (
-    <button 
-      type="button" 
-      onClick={onChange}
-      className="flex items-start gap-4 text-left w-full py-3 hover:bg-black/5 dark:hover:bg-white/5 px-2 -mx-2 rounded-md transition-colors"
-      role="checkbox"
-      aria-checked={checked}
-    >
-      <div className={`mt-1 shrink-0 w-8 h-8 rounded-md border-2 flex items-center justify-center transition-colors ${checked ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground bg-background'}`}>
-        {checked && <Check className="w-5 h-5" strokeWidth={3} />}
-      </div>
-      <div>
-        <div className={`text-[19px] font-bold ${checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{name}</div>
-        <div className={`text-[15px] mt-0.5 ${checked ? 'text-muted-foreground/70' : 'text-muted-foreground'}`}>{subtitle}</div>
-      </div>
-    </button>
-  );
-}
 
 function PanchangItem({ label, value }: { label: string, value: string }) {
   return (
@@ -88,11 +56,6 @@ function PracticeSection({
     return () => clearTimeout(timer);
   }, [localNotes, dateKey, sessionKey, sectionData.notes, onUpdate]);
 
-  const handleToggleCheck = (itemKey: string) => {
-    const updated = toggleCheck(dateKey, sessionKey, itemKey);
-    onUpdate(updated);
-  };
-
   const handleToggleCompleted = () => {
     const updated = toggleCompleted(dateKey, sessionKey);
     onUpdate(updated);
@@ -124,19 +87,7 @@ function PracticeSection({
       </div>
 
       {/* Content — always visible */}
-      <div className="p-5 border-t-2 border-border space-y-8 bg-card">
-        <div className="space-y-1">
-          {CHECKLIST_ITEMS.map((item) => (
-            <PracticeCheckbox
-              key={item.key}
-              name={item.name}
-              subtitle={item.subtitle}
-              checked={!!sectionData.checks[item.key]}
-              onChange={() => handleToggleCheck(item.key)}
-            />
-          ))}
-        </div>
-
+      <div className="p-5 border-t-2 border-border space-y-6 bg-card">
         <div className="space-y-3">
           <label className="text-[15px] font-bold text-muted-foreground uppercase tracking-wider">Notes for this practice</label>
           <textarea
