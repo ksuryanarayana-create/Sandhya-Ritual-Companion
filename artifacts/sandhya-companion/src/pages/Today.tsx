@@ -243,7 +243,8 @@ export default function Today() {
               <PanchangItem label="Ayana" value={panchang.ayana} />
               <PanchangItem label="Ritu" value={panchang.ritu} />
               <div className="col-span-2 mt-3 pt-4 border-t border-[#e2cca4] dark:border-[#4a2e15]">
-                <PanchangItem label="Samvat" value={`Shalivahana Saka ${panchang.samvat}`} />
+                <PanchangItem label="Samvatsara" value={`${panchang.samvatsara} Nama Samvatsare`} />
+                <PanchangItem label="Shalivahana Saka" value={`${panchang.samvat}`} />
               </div>
             </div>
           </section>

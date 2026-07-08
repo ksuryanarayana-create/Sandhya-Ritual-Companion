@@ -276,6 +276,37 @@ export function getAyana(sunLon: number): string {
   return "Dakshinayana";
 }
 
+// ─── 60-year Samvatsara cycle ────────────────────────────────────────────────
+
+/**
+ * The 60-year Brihaspati (Jupiter) samvatsara cycle used in Telugu panchang.
+ * Each Shalivahana Saka year carries one of these names.
+ */
+export const SAMVATSARA_NAMES: string[] = [
+  "Prabhava", "Vibhava", "Shukla", "Pramoda", "Prajapati",
+  "Angiras", "Shrimukha", "Bhava", "Yuva", "Dhata",
+  "Ishvara", "Bahudhanya", "Pramathi", "Vikrama", "Vrisha",
+  "Chitrabhanu", "Subhanu", "Tarana", "Parthiva", "Vyaya",
+  "Sarvajit", "Sarvadhari", "Virodhi", "Vikruti", "Khara",
+  "Nandana", "Vijaya", "Jaya", "Manmatha", "Durmukhi",
+  "Hevilambi", "Vilambi", "Vikari", "Sharvari", "Plava",
+  "Shubhakrit", "Shobhana", "Krodhi", "Vishvavasu", "Parabhava",
+  "Plavanga", "Kilaka", "Saumya", "Sadharana", "Virodhikrit",
+  "Paridhavi", "Pramadi", "Ananda", "Rakshasa", "Anala",
+  "Pingala", "Kalayukti", "Siddharthi", "Raudri", "Durmati",
+  "Dundubhi", "Rudhirodgari", "Raktakshi", "Krodhana", "Akshaya",
+];
+
+/**
+ * Samvatsara name for a given Shalivahana Saka year.
+ * Verified anchor: Saka 1948 (Ugadi March 2026) = Parabhava (index 39).
+ * Formula: index = (saka_year mod 60 + 11) mod 60
+ */
+export function getSamvatsara(sakaYear: number): string {
+  const idx = ((sakaYear % 60) + 11) % 60;
+  return SAMVATSARA_NAMES[idx];
+}
+
 // ─── Shalivahana Saka year ──────────────────────────────────────────────────
 
 /**
@@ -300,12 +331,13 @@ export interface PanchangData {
   nakshatra: string;
   yoga: string;
   karana: string;
-  vara: string;       // Sanskrit weekday name
-  masa: string;       // Telugu month
-  ritu: string;       // Season
-  ayana: string;      // Uttarayana / Dakshinayana
-  samvat: number;     // Shalivahana Saka year
-  solarSign: string;  // Current solar sign (Rashi)
+  vara: string;        // Sanskrit weekday name
+  masa: string;        // Telugu month
+  ritu: string;        // Season
+  ayana: string;       // Uttarayana / Dakshinayana
+  samvat: number;      // Shalivahana Saka year number
+  samvatsara: string;  // 60-year cycle name, e.g. "Parabhava"
+  solarSign: string;   // Current solar sign (Rashi)
 }
 
 const SOLAR_SIGN_NAMES = [
@@ -359,6 +391,7 @@ export function calculatePanchang(date: Date): PanchangData {
     ritu: RITU_NAMES[Math.floor(solarSignIdx / 2)],
     ayana: getAyana(sLon),
     samvat: getShalivahanaYear(year, solarSignIdx),
+    samvatsara: getSamvatsara(getShalivahanaYear(year, solarSignIdx)),
     solarSign: SOLAR_SIGN_NAMES[solarSignIdx],
   };
 }
