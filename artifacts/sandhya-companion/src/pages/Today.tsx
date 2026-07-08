@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { MapPin, Sunrise, Sunset, ChevronDown, ChevronUp, Check, Loader2 } from "lucide-react";
 import { fetchSunTimes, getActiveSession, formatTime, type SunTimes, type ActiveSession } from "@/lib/sunriseSunset";
 import { calculatePanchang, type PanchangData } from "@/lib/panchang";
+import { buildSankalpamDesha, type SankalpamDesha } from "@/lib/sankalpam";
 import {
   getDailyRecord, toggleCheck, updateNotes, toggleCompleted,
   toDateKey, type SessionKey, type DailyRecord, type Location, getLocation
@@ -163,6 +164,7 @@ export default function Today() {
   const [location, setLocationState] = useState<Location | null>(null);
   const [sunTimes, setSunTimes] = useState<SunTimes | null>(null);
   const [panchang, setPanchang] = useState<PanchangData | null>(null);
+  const [sankalpamDesha, setSankalpamDesha] = useState<SankalpamDesha | null>(null);
   const [activeSession, setActiveSession] = useState<ActiveSession>("none");
   const [record, setRecord] = useState<DailyRecord | null>(null);
   const [isLoadingSun, setIsLoadingSun] = useState(false);
@@ -176,6 +178,9 @@ export default function Today() {
     setLocationState(loc);
     setPanchang(calculatePanchang(today));
     setRecord(getDailyRecord(dateKey));
+    if (loc) {
+      setSankalpamDesha(buildSankalpamDesha(loc.city, loc.lat, loc.lng));
+    }
 
     if (loc) {
       setIsLoadingSun(true);
@@ -247,6 +252,33 @@ export default function Today() {
                 <PanchangItem label="Shalivahana Saka" value={`${panchang.samvat}`} />
               </div>
             </div>
+
+            {/* Sankalpam Desha — recited at the beginning of Sankalpam */}
+            {sankalpamDesha && (
+              <div className="mt-5 pt-5 border-t border-[#e2cca4] dark:border-[#4a2e15]">
+                <p className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest mb-3">
+                  Deśa · For Sankalpam
+                </p>
+                {/* Full text for reading aloud */}
+                <p className="text-[17px] leading-relaxed text-foreground font-medium italic mb-3">
+                  {sankalpamDesha.fullText}...
+                </p>
+                {/* Individual lines for easy reading */}
+                <ol className="space-y-1 list-none">
+                  {sankalpamDesha.lines.map((line, i) => (
+                    <li key={i} className="flex items-start gap-2 text-[16px] text-foreground/80">
+                      <span className="text-primary font-bold shrink-0 w-5 text-right">{i + 1}.</span>
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {!sankalpamDesha && (
+              <p className="mt-4 text-[15px] text-muted-foreground italic text-center">
+                Set your location to see the Sankalpam deśa text.
+              </p>
+            )}
           </section>
         )}
 
