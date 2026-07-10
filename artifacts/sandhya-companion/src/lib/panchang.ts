@@ -435,7 +435,7 @@ export interface PanchangData {
   masa: string;        // Telugu month
   ritu: string;        // Season
   ayana: string;       // Uttarayana / Dakshinayana
-  samvat: number;      // Shalivahana Saka year number
+  samvat: number;      // Shalivahana Saka year number (not shown on Today; retained for potential future reference/export use)
   samvatsara: string;  // 60-year cycle name, e.g. "Parabhava"
   solarSign: string;   // Current solar sign (Rashi)
 }
