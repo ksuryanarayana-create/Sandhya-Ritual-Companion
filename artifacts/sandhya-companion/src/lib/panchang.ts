@@ -322,6 +322,103 @@ export function getShalivahanaYear(year: number, solarSignIndex: number): number
   return year - 78;
 }
 
+// ─── Intra-day transitions (tithi/karana/yoga change mid-day) ───────────────
+
+/** One named period of a panchang element within (or overlapping) the calendar day. */
+export interface PanchangSegment {
+  name: string;
+  /** Formatted local end time, e.g. "08:16 AM" or "05:22 AM, Jul 11" if it ends the next day. */
+  upto: string;
+}
+
+/** Sidereal elongation (Moon − Sun), 0–360°. Drives tithi and karana. */
+function elongationSidereal(jd: number): number {
+  const s = toSidereal(sunLongitude(jd), jd);
+  const m = toSidereal(moonLongitude(jd), jd);
+  return ((m - s) % 360 + 360) % 360;
+}
+
+/** Sidereal Sun+Moon sum, 0–360°. Drives yoga. */
+function sumSidereal(jd: number): number {
+  const s = toSidereal(sunLongitude(jd), jd);
+  const m = toSidereal(moonLongitude(jd), jd);
+  return ((s + m) % 360 + 360) % 360;
+}
+
+/**
+ * Find the next time (JD) after `jd0` at which a monotonically-increasing,
+ * wrapping angle `thetaFn` crosses the next multiple of `stepDeg`.
+ * Uses bisection on a signed, wrap-aware distance function.
+ */
+function findBoundaryCrossing(jd0: number, thetaFn: (jd: number) => number, stepDeg: number, maxDays = 3): number {
+  const theta0 = thetaFn(jd0 + 1e-7); // nudge past an exact boundary
+  const target = (Math.floor(theta0 / stepDeg) + 1) * stepDeg;
+  const dist = (jd: number) => {
+    const th = thetaFn(jd);
+    return (((th - target + 180) % 360 + 360) % 360) - 180;
+  };
+  let lo = jd0, hi = jd0 + maxDays;
+  // Safety: if not bracketed within maxDays (should not happen for real
+  // sun/moon rates), extend the window once before giving up.
+  if (!(dist(lo) <= 0 && dist(hi) >= 0)) {
+    hi = jd0 + maxDays * 2;
+  }
+  if (!(dist(lo) <= 0 && dist(hi) >= 0)) {
+    // Still not bracketed — astronomically shouldn't occur. Fail loudly in
+    // dev rather than silently returning a bogus crossing time.
+    console.warn("findBoundaryCrossing: could not bracket a root; returning best-effort estimate.");
+    return hi;
+  }
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (dist(mid) <= 0) lo = mid; else hi = mid;
+  }
+  return hi;
+}
+
+/** Format a JD as a local wall-clock time relative to `baseDate`/`jdBase`, noting the date if it rolls to the next day. */
+function formatSegmentTime(baseDate: Date, jdBase: number, jdTarget: number): string {
+  const ms = baseDate.getTime() + (jdTarget - jdBase) * 86400000;
+  const d = new Date(ms);
+  const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  const rolledOver = d.getFullYear() !== baseDate.getFullYear() || d.getMonth() !== baseDate.getMonth() || d.getDate() !== baseDate.getDate();
+  if (rolledOver) {
+    const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return `${timeStr}, ${dateStr}`;
+  }
+  return timeStr;
+}
+
+/**
+ * Build the list of segments for an element (tithi/karana/yoga) that are
+ * active at any point during the local calendar day starting at `dayStartJD`.
+ * Mirrors traditional panchang references (e.g. Drik Panchang), which list
+ * every value the element takes on that day along with its end time.
+ */
+function computeDaySegments(
+  dayStartJD: number,
+  baseDate: Date,
+  jdBase: number,
+  thetaFn: (jd: number) => number,
+  stepDeg: number,
+  nameFn: (idx: number) => string,
+  cycleLen: number,
+  maxSegments = 4,
+): PanchangSegment[] {
+  const dayEndJD = dayStartJD + 1;
+  const segments: PanchangSegment[] = [];
+  let cursor = dayStartJD;
+  for (let i = 0; i < maxSegments && cursor < dayEndJD; i++) {
+    const theta = ((thetaFn(cursor) % 360) + 360) % 360;
+    const idx = Math.floor(theta / stepDeg) % cycleLen;
+    const endJD = findBoundaryCrossing(cursor, thetaFn, stepDeg);
+    segments.push({ name: nameFn(idx), upto: formatSegmentTime(baseDate, jdBase, endJD) });
+    if (endJD <= cursor + 1e-6) break; // safety against zero-length loop
+    cursor = endJD + 1e-6;
+  }
+  return segments;
+}
+
 // ─── Main export ─────────────────────────────────────────────────────────────
 
 export interface PanchangData {
@@ -331,6 +428,9 @@ export interface PanchangData {
   nakshatra: string;
   yoga: string;
   karana: string;
+  tithiSegments: PanchangSegment[];
+  karanaSegments: PanchangSegment[];
+  yogaSegments: PanchangSegment[];
   vara: string;        // Sanskrit weekday name
   masa: string;        // Telugu month
   ritu: string;        // Season
@@ -355,12 +455,13 @@ export function calculatePanchang(date: Date): PanchangData {
   const month = date.getMonth() + 1;
   const day = date.getDate();
 
-  // Convert local noon to UT so JD (which is UT-based) is correct.
-  // date.getTimezoneOffset() returns minutes WEST of UTC (negative for IST, etc.)
-  const tzOffsetHours = -date.getTimezoneOffset() / 60; // positive = east of UTC
-  const localNoonUT = 12.0 - tzOffsetHours; // UT hour corresponding to local noon
-  const hourFraction = ((localNoonUT % 24) + 24) % 24 / 24;
-  const jd = gregorianToJD(year, month, day) + hourFraction;
+  // JD for local noon of this calendar date, derived directly from the
+  // instant's real UTC timestamp (Unix epoch = JD 2440587.5). This avoids
+  // modulo-wrapping the UT hour, which previously shifted the JD by a full
+  // day for large positive UTC offsets (e.g. UTC+13/+14) instead of rolling
+  // the date over correctly.
+  const localNoonDateForJD = new Date(year, month - 1, day, 12, 0, 0, 0);
+  const jd = localNoonDateForJD.getTime() / 86400000 + 2440587.5;
 
   // Tropical (Western) longitudes
   const tropicalSun = sunLongitude(jd);
@@ -379,6 +480,15 @@ export function calculatePanchang(date: Date): PanchangData {
   const weekday = date.getDay(); // 0 = Sunday
   const paksha: "Shukla" | "Krishna" = tithiIdx < 15 ? "Shukla" : "Krishna";
 
+  // Local midnight JD for this calendar date (jd above is local noon).
+  const dayStartJD = jd - 0.5;
+  const localNoonDate = localNoonDateForJD;
+
+  const yogaStep = 360 / 27;
+  const tithiSegments = computeDaySegments(dayStartJD, localNoonDate, jd, elongationSidereal, 12, (i) => TITHI_NAMES[i], 30);
+  const karanaSegments = computeDaySegments(dayStartJD, localNoonDate, jd, elongationSidereal, 6, getKaranaName, 60);
+  const yogaSegments = computeDaySegments(dayStartJD, localNoonDate, jd, sumSidereal, yogaStep, (i) => YOGA_NAMES[i], 27);
+
   return {
     tithi: TITHI_NAMES[tithiIdx],
     tithiIndex: tithiIdx,
@@ -386,6 +496,9 @@ export function calculatePanchang(date: Date): PanchangData {
     nakshatra: NAKSHATRA_NAMES[nakshatraIdx],
     yoga: YOGA_NAMES[yogaIdx],
     karana: getKaranaName(karanaIdx),
+    tithiSegments,
+    karanaSegments,
+    yogaSegments,
     vara: VARA_NAMES[weekday].full,
     masa: TELUGU_MASA_NAMES[solarSignIdx],
     ritu: RITU_NAMES[Math.floor(solarSignIdx / 2)],

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { MapPin, Sunrise, Sunset, Loader2 } from "lucide-react";
 import { fetchSunTimes, getActiveSession, getSessionWindows, formatTime, type SunTimes, type ActiveSession, type SessionWindows } from "@/lib/sunriseSunset";
-import { calculatePanchang, type PanchangData } from "@/lib/panchang";
+import { calculatePanchang, type PanchangData, type PanchangSegment } from "@/lib/panchang";
 import { buildSankalpamDesha, type SankalpamDesha } from "@/lib/sankalpam";
 import { toDateKey, type Location, getLocation } from "@/lib/storage";
 
@@ -11,6 +11,21 @@ function PanchangItem({ label, value }: { label: string, value: string }) {
     <div className="flex flex-col mb-1">
       <span className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest">{label}</span>
       <span className="text-xl font-medium text-foreground">{value}</span>
+    </div>
+  );
+}
+
+/** Panchang item that can change partway through the day (tithi/yoga/karana). Shows each value with its end time. */
+function PanchangTransitionItem({ label, segments }: { label: string; segments: PanchangSegment[] }) {
+  return (
+    <div className="flex flex-col mb-1">
+      <span className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest">{label}</span>
+      {segments.map((seg, i) => (
+        <span key={i} className="leading-snug">
+          <span className="text-xl font-medium text-foreground">{seg.name}</span>
+          <span className="text-[13px] text-muted-foreground ml-1.5">upto {seg.upto}</span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -125,11 +140,11 @@ export default function Today() {
           <section className="bg-[#f4e6cc] dark:bg-[#352210] border border-[#e2cca4] dark:border-[#4a2e15] rounded-2xl p-6 shadow-sm">
             <h2 className="text-3xl font-serif font-bold mb-6 text-center text-primary">Today's Panchang</h2>
             <div className="grid grid-cols-2 gap-y-5 gap-x-4">
-              <PanchangItem label="Tithi" value={panchang.tithi} />
+              <PanchangTransitionItem label="Tithi" segments={panchang.tithiSegments} />
               <PanchangItem label="Vara" value={panchang.vara} />
               <PanchangItem label="Nakshatra" value={panchang.nakshatra} />
-              <PanchangItem label="Yoga" value={panchang.yoga} />
-              <PanchangItem label="Karana" value={panchang.karana} />
+              <PanchangTransitionItem label="Yoga" segments={panchang.yogaSegments} />
+              <PanchangTransitionItem label="Karana" segments={panchang.karanaSegments} />
               <PanchangItem label="Masa" value={panchang.masa} />
               <PanchangItem label="Ayana" value={panchang.ayana} />
               <PanchangItem label="Ritu" value={panchang.ritu} />
