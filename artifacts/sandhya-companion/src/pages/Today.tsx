@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { MapPin, Sunrise, Sunset, Check, Loader2 } from "lucide-react";
+import { MapPin, Sunrise, Sunset, Loader2 } from "lucide-react";
 import { fetchSunTimes, getActiveSession, getSessionWindows, formatTime, type SunTimes, type ActiveSession, type SessionWindows } from "@/lib/sunriseSunset";
 import { calculatePanchang, type PanchangData } from "@/lib/panchang";
 import { buildSankalpamDesha, type SankalpamDesha } from "@/lib/sankalpam";
-import {
-  getDailyRecord, updateNotes, toggleCompleted,
-  toDateKey, type SessionKey, type DailyRecord, type Location, getLocation
-} from "@/lib/storage";
+import { toDateKey, type Location, getLocation } from "@/lib/storage";
 
 function PanchangItem({ label, value }: { label: string, value: string }) {
   return (
@@ -19,92 +16,31 @@ function PanchangItem({ label, value }: { label: string, value: string }) {
 }
 
 function PracticeSection({
-  sessionKey,
   title,
   subtext,
   timeWindow,
   isActive,
-  dateKey,
-  sectionData,
-  onUpdate
 }: {
-  sessionKey: SessionKey;
   title: string;
   subtext: string;
   timeWindow?: string;
   isActive: boolean;
-  dateKey: string;
-  sectionData: any;
-  onUpdate: (record: DailyRecord) => void;
 }) {
-  const [localNotes, setLocalNotes] = useState(sectionData.notes);
-
-  useEffect(() => {
-    setLocalNotes(sectionData.notes);
-  }, [sectionData.notes]);
-
-  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setLocalNotes(e.target.value);
-  };
-
-  useEffect(() => {
-    if (localNotes === sectionData.notes) return;
-    const timer = setTimeout(() => {
-      const updated = updateNotes(dateKey, sessionKey, localNotes);
-      onUpdate(updated);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [localNotes, dateKey, sessionKey, sectionData.notes, onUpdate]);
-
-  const handleToggleCompleted = () => {
-    const updated = toggleCompleted(dateKey, sessionKey);
-    onUpdate(updated);
-  };
-
   return (
-    <div className={`rounded-xl border-2 overflow-hidden transition-colors ${isActive ? 'border-primary shadow-md' : 'border-border'} ${sectionData.completed ? 'opacity-75' : ''}`}>
-      {/* Header — not collapsible */}
-      <div className={`p-5 flex items-start justify-between ${isActive ? 'bg-primary/10' : 'bg-card'}`}>
-        <div>
-          <h2 className={`text-2xl font-serif font-bold ${isActive ? 'text-primary' : 'text-foreground'}`}>{title}</h2>
-          <div className="text-[17px] text-muted-foreground mt-1">{subtext}</div>
-          {timeWindow && (
-            <div className="text-[16px] font-semibold text-primary mt-2 tabular-nums">
-              🕐 {timeWindow}
-            </div>
-          )}
-          {!timeWindow && (
-            <div className="text-[15px] text-muted-foreground/70 mt-2 italic">
-              Set location for exact times
-            </div>
-          )}
-        </div>
-        {sectionData.completed && (
-          <div className="shrink-0 ml-3 flex items-center gap-1.5 text-[15px] font-semibold text-primary bg-primary/10 px-3 py-1.5 rounded-full">
-            <Check className="w-4 h-4" /> Done
+    <div className={`rounded-xl border-2 overflow-hidden transition-colors ${isActive ? 'border-primary shadow-md' : 'border-border'}`}>
+      <div className={`p-5 ${isActive ? 'bg-primary/10' : 'bg-card'}`}>
+        <h2 className={`text-2xl font-serif font-bold ${isActive ? 'text-primary' : 'text-foreground'}`}>{title}</h2>
+        <div className="text-[17px] text-muted-foreground mt-1">{subtext}</div>
+        {timeWindow && (
+          <div className="text-[16px] font-semibold text-primary mt-2 tabular-nums">
+            🕐 {timeWindow}
           </div>
         )}
-      </div>
-
-      {/* Content — always visible */}
-      <div className="p-5 border-t-2 border-border space-y-6 bg-card">
-        <div className="space-y-3">
-          <label className="text-[15px] font-bold text-muted-foreground uppercase tracking-wider">Notes for this practice</label>
-          <textarea
-            value={localNotes}
-            onChange={handleNotesChange}
-            placeholder="Any specific thoughts, delays, or intentions..."
-            className="w-full min-h-[100px] p-4 rounded-md border-2 border-input bg-background text-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary placeholder:text-muted-foreground/60"
-            rows={3}
-          />
-        </div>
-
-        <button
-          onClick={handleToggleCompleted}
-          className={`w-full py-4 rounded-lg text-[19px] font-bold transition-colors ${sectionData.completed ? 'bg-background text-muted-foreground border-2 border-input hover:bg-muted' : 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'}`}
-        >
-          {sectionData.completed ? "Mark as Incomplete" : "Mark as Completed ✓"}
-        </button>
+        {!timeWindow && (
+          <div className="text-[15px] text-muted-foreground/70 mt-2 italic">
+            Set location for exact times
+          </div>
+        )}
       </div>
     </div>
   );
@@ -117,7 +53,6 @@ export default function Today() {
   const [sankalpamDesha, setSankalpamDesha] = useState<SankalpamDesha | null>(null);
   const [activeSession, setActiveSession] = useState<ActiveSession>("none");
   const [sessionWindows, setSessionWindows] = useState<SessionWindows | null>(null);
-  const [record, setRecord] = useState<DailyRecord | null>(null);
   const [isLoadingSun, setIsLoadingSun] = useState(false);
   const [sunError, setSunError] = useState<string | null>(null);
 
@@ -128,7 +63,6 @@ export default function Today() {
     const loc = getLocation();
     setLocationState(loc);
     setPanchang(calculatePanchang(today));
-    setRecord(getDailyRecord(dateKey));
     if (loc) {
       setSankalpamDesha(buildSankalpamDesha(loc.city, loc.lat, loc.lng));
     }
@@ -234,40 +168,26 @@ export default function Today() {
           </section>
         )}
 
-        {record && (
-          <div className="space-y-5">
-            <PracticeSection
-              sessionKey="pratah"
-              title="Pratah Sandhya"
-              subtext="Morning Practice"
-              timeWindow={sessionWindows?.pratah}
-              isActive={activeSession === "pratah"}
-              dateKey={dateKey}
-              sectionData={record.pratah}
-              onUpdate={setRecord}
-            />
-            <PracticeSection
-              sessionKey="madhyahna"
-              title="Madhyahna Sandhya"
-              subtext="Midday Practice"
-              timeWindow={sessionWindows?.madhyahna}
-              isActive={activeSession === "madhyahna"}
-              dateKey={dateKey}
-              sectionData={record.madhyahna}
-              onUpdate={setRecord}
-            />
-            <PracticeSection
-              sessionKey="sayam"
-              title="Sayam Sandhya"
-              subtext="Evening Practice"
-              timeWindow={sessionWindows?.sayam}
-              isActive={activeSession === "sayam"}
-              dateKey={dateKey}
-              sectionData={record.sayam}
-              onUpdate={setRecord}
-            />
-          </div>
-        )}
+        <div className="space-y-5">
+          <PracticeSection
+            title="Pratah Sandhya"
+            subtext="Morning Practice"
+            timeWindow={sessionWindows?.pratah}
+            isActive={activeSession === "pratah"}
+          />
+          <PracticeSection
+            title="Madhyahna Sandhya"
+            subtext="Midday Practice"
+            timeWindow={sessionWindows?.madhyahna}
+            isActive={activeSession === "madhyahna"}
+          />
+          <PracticeSection
+            title="Sayam Sandhya"
+            subtext="Evening Practice"
+            timeWindow={sessionWindows?.sayam}
+            isActive={activeSession === "sayam"}
+          />
+        </div>
       </div>
     </div>
   );
