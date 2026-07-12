@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { MapPin, Sunrise, Sunset, Loader2 } from "lucide-react";
-import { fetchSunTimes, getActiveSession, getSessionWindows, formatTime, type SunTimes, type ActiveSession, type SessionWindows } from "@/lib/sunriseSunset";
+import {
+  fetchSunTimes, getActiveSession, getSessionWindows, formatTime,
+  getRahuKalam, getGulikaKalam, getYamagandam, getAbhijitMuhurta, getDurMuhurtam,
+  type SunTimes, type ActiveSession, type SessionWindows, type TimeWindow,
+} from "@/lib/sunriseSunset";
 import { calculatePanchang, type PanchangData, type PanchangSegment } from "@/lib/panchang";
 import { buildSankalpamDesha, type SankalpamDesha } from "@/lib/sankalpam";
 import { toDateKey, type Location, getLocation } from "@/lib/storage";
-import { getTimeZone } from "@/lib/timezone";
+import { getTimeZone, getZonedWeekday } from "@/lib/timezone";
 
 /** A single recited panchang item, shown as a full-width row (label left, value right) for easy top-to-bottom reading in recitation order. */
 function PanchangItem({ label, value }: { label: string, value: string }) {
@@ -30,6 +34,28 @@ function PanchangTransitionItem({ label, segments }: { label: string; segments: 
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** One inauspicious/auspicious muhurta row: label left, time range right. */
+function MuhurtaItem({
+  label,
+  window,
+  tone,
+  timeZone,
+}: {
+  label: string;
+  window: { start: Date; end: Date } | null;
+  tone: "inauspicious" | "auspicious";
+  timeZone: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-2.5 border-b border-[#e2cca4] dark:border-[#4a2e15] last:border-b-0">
+      <span className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">{label}</span>
+      <span className={`text-lg font-medium text-right ${tone === "inauspicious" ? "text-destructive" : "text-primary"}`}>
+        {window ? `${formatTime(window.start, timeZone)} – ${formatTime(window.end, timeZone)}` : "—"}
+      </span>
     </div>
   );
 }
@@ -71,6 +97,13 @@ export default function Today() {
   // own zone whenever it differs from the location (e.g. Singapore viewed
   // from a device set to IST).
   const timeZone = location ? getTimeZone(location.lat, location.lng) : Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const weekday = getZonedWeekday(today, timeZone);
+
+  const rahuKalam: TimeWindow | null = sunTimes ? getRahuKalam(sunTimes, weekday) : null;
+  const gulikaKalam: TimeWindow | null = sunTimes ? getGulikaKalam(sunTimes, weekday) : null;
+  const yamagandam: TimeWindow | null = sunTimes ? getYamagandam(sunTimes, weekday) : null;
+  const abhijitMuhurta: TimeWindow | null = sunTimes ? getAbhijitMuhurta(sunTimes) : null;
+  const durMuhurtam: TimeWindow | null = sunTimes ? getDurMuhurtam(sunTimes, weekday) : null;
 
   useEffect(() => {
     const loc = getLocation();
@@ -176,6 +209,27 @@ export default function Today() {
               <PanchangTransitionItem label="Yoga" segments={panchang.yogaSegments} />
               <PanchangTransitionItem label="Karana" segments={panchang.karanaSegments} />
             </div>
+          </section>
+        )}
+
+        {panchang && (
+          <section className="bg-[#f4e6cc] dark:bg-[#352210] border border-[#e2cca4] dark:border-[#4a2e15] rounded-2xl p-6 shadow-sm">
+            <h2 className="text-3xl font-serif font-bold mb-5 text-center text-primary">Muhurta Timings</h2>
+
+            {location && sunTimes ? (
+              <div>
+                <MuhurtaItem label="Rahu Kalam" window={rahuKalam} tone="inauspicious" timeZone={timeZone} />
+                <MuhurtaItem label="Gulika Kalam" window={gulikaKalam} tone="inauspicious" timeZone={timeZone} />
+                <MuhurtaItem label="Yamagandam" window={yamagandam} tone="inauspicious" timeZone={timeZone} />
+                <MuhurtaItem label="Dur Muhurtam" window={durMuhurtam} tone="inauspicious" timeZone={timeZone} />
+                <MuhurtaItem label="Varjyam" window={panchang.varjyam} tone="inauspicious" timeZone={timeZone} />
+                <MuhurtaItem label="Abhijit Muhurta" window={abhijitMuhurta} tone="auspicious" timeZone={timeZone} />
+              </div>
+            ) : (
+              <p className="text-[15px] text-muted-foreground italic text-center">
+                Set your location to see today's muhurta timings.
+              </p>
+            )}
           </section>
         )}
       </div>

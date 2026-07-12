@@ -111,6 +111,72 @@ export function getSessionWindows(sunTimes: SunTimes, timeZone?: string): Sessio
   };
 }
 
+// ─── Muhurta windows (Rahu Kalam, Gulika Kalam, Yamagandam, Abhijit, Dur Muhurtam) ──
+//
+// Rahu Kalam / Gulika Kalam / Yamagandam split the daylight period (sunrise→sunset)
+// into 8 equal parts; each inauspicious period occupies one fixed part per weekday.
+// Abhijit Muhurta and Dur Muhurtam split daylight into 15 equal muhurtas instead.
+// Weekday index: 0 = Sunday … 6 = Saturday.
+
+export interface TimeWindow {
+  start: Date;
+  end: Date;
+}
+
+/** 1-based index (1–8) of the daylight-eighth used for each inauspicious period, by weekday. */
+const RAHU_KALAM_PART = [8, 2, 7, 5, 6, 4, 3];
+const GULIKA_KALAM_PART = [7, 6, 5, 4, 3, 2, 1];
+const YAMAGANDAM_PART = [5, 4, 3, 2, 1, 7, 6];
+
+/**
+ * 1-based index (1–15) of the daylight-fifteenth used for Dur Muhurtam, by weekday.
+ * Every day has exactly one Dur Muhurtam window in this scheme (matches Drik Panchang);
+ * some other panchang traditions show two windows for certain weekdays — that variant
+ * could not be confidently sourced, so this app shows the single verified window.
+ */
+const DUR_MUHURTAM_MUHURTA = [14, 9, 4, 8, 6, 4, 1];
+
+/** Abhijit Muhurta is always the 8th of the 15 daylight muhurtas, every day of the week. */
+const ABHIJIT_MUHURTA_INDEX = 8;
+
+function daylightEighth(sunTimes: SunTimes, part: number): TimeWindow {
+  const dayMs = sunTimes.sunset.getTime() - sunTimes.sunrise.getTime();
+  const partMs = dayMs / 8;
+  return {
+    start: new Date(sunTimes.sunrise.getTime() + (part - 1) * partMs),
+    end: new Date(sunTimes.sunrise.getTime() + part * partMs),
+  };
+}
+
+function daylightFifteenth(sunTimes: SunTimes, muhurta: number): TimeWindow {
+  const dayMs = sunTimes.sunset.getTime() - sunTimes.sunrise.getTime();
+  const muhurtaMs = dayMs / 15;
+  return {
+    start: new Date(sunTimes.sunrise.getTime() + (muhurta - 1) * muhurtaMs),
+    end: new Date(sunTimes.sunrise.getTime() + muhurta * muhurtaMs),
+  };
+}
+
+export function getRahuKalam(sunTimes: SunTimes, weekday: number): TimeWindow {
+  return daylightEighth(sunTimes, RAHU_KALAM_PART[weekday]);
+}
+
+export function getGulikaKalam(sunTimes: SunTimes, weekday: number): TimeWindow {
+  return daylightEighth(sunTimes, GULIKA_KALAM_PART[weekday]);
+}
+
+export function getYamagandam(sunTimes: SunTimes, weekday: number): TimeWindow {
+  return daylightEighth(sunTimes, YAMAGANDAM_PART[weekday]);
+}
+
+export function getAbhijitMuhurta(sunTimes: SunTimes): TimeWindow {
+  return daylightFifteenth(sunTimes, ABHIJIT_MUHURTA_INDEX);
+}
+
+export function getDurMuhurtam(sunTimes: SunTimes, weekday: number): TimeWindow {
+  return daylightFifteenth(sunTimes, DUR_MUHURTAM_MUHURTA[weekday]);
+}
+
 /** Determine which Sandhya session is currently active based on sun times. */
 export type ActiveSession = "pratah" | "madhyahna" | "sayam" | "none";
 

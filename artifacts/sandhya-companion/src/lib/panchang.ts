@@ -378,6 +378,78 @@ function findBoundaryCrossing(jd0: number, thetaFn: (jd: number) => number, step
   return hi;
 }
 
+/** Nakshatra sidereal longitude, 0–360°. */
+function nakshatraSidereal(jd: number): number {
+  return toSidereal(moonLongitude(jd), jd);
+}
+
+/**
+ * Find the previous time (JD) before `jd0` at which a monotonically-increasing,
+ * wrapping angle `thetaFn` crossed the most recent multiple of `stepDeg`.
+ * Mirror image of `findBoundaryCrossing`, searching backward in time.
+ */
+function findPreviousBoundaryCrossing(jd0: number, thetaFn: (jd: number) => number, stepDeg: number, maxDays = 3): number {
+  const theta0 = thetaFn(jd0 - 1e-7);
+  const target = Math.floor(theta0 / stepDeg) * stepDeg;
+  const dist = (jd: number) => {
+    const th = thetaFn(jd);
+    return (((th - target + 180) % 360 + 360) % 360) - 180;
+  };
+  let lo = jd0 - maxDays, hi = jd0;
+  if (!(dist(lo) <= 0 && dist(hi) >= 0)) {
+    lo = jd0 - maxDays * 2;
+  }
+  if (!(dist(lo) <= 0 && dist(hi) >= 0)) {
+    console.warn("findPreviousBoundaryCrossing: could not bracket a root; returning best-effort estimate.");
+    return lo;
+  }
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (dist(mid) <= 0) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Nakshatra Thyajyam (a.k.a. Varjyam) — an inauspicious ~1h36m window within
+ * the day's ruling nakshatra, per the classical ghati table also used by
+ * Drik Panchang. Each nakshatra's own span is divided into 60 ghatis; the
+ * table gives the [start, end] ghati range to avoid.
+ * Index matches `NAKSHATRA_NAMES` (0 = Ashwini … 26 = Revati).
+ */
+const NAKSHATRA_TYAJYA_GHATIS: [number, number][] = [
+  [51, 54], [25, 28], [31, 34], [41, 44], [15, 18], [22, 25], [31, 34],
+  [21, 24], [33, 36], [31, 34], [21, 24], [19, 22], [22, 25], [21, 24],
+  [15, 18], [15, 18], [11, 14], [15, 18], [57, 60], [25, 28], [21, 24],
+  [11, 14], [11, 14], [19, 22], [17, 20], [25, 28], [31, 34],
+];
+
+/** A single inauspicious/auspicious time window, in absolute Date terms. */
+export interface AbsoluteWindow {
+  start: Date;
+  end: Date;
+}
+
+/**
+ * Varjyam window(s) for the nakshatra active at `jd`. Returns null if this
+ * nakshatra has no tabulated Varjyam (shouldn't happen — all 27 are tabulated).
+ */
+export function getVarjyam(jd: number, baseDate: Date, jdBase: number): AbsoluteWindow | null {
+  const mLon = nakshatraSidereal(jd);
+  const nakshatraIdx = getNakshatraIndex(mLon);
+  const step = 360 / 27;
+  const startJD = findPreviousBoundaryCrossing(jd, nakshatraSidereal, step);
+  const endJD = findBoundaryCrossing(jd, nakshatraSidereal, step);
+  const duration = endJD - startJD;
+  const range = NAKSHATRA_TYAJYA_GHATIS[nakshatraIdx];
+  if (!range || duration <= 0) return null;
+  const [g1, g2] = range;
+  const winStartJD = startJD + (duration * (g1 - 1)) / 60;
+  const winEndJD = startJD + (duration * g2) / 60;
+  const toDate = (t: number) => new Date(baseDate.getTime() + (t - jdBase) * 86400000);
+  return { start: toDate(winStartJD), end: toDate(winEndJD) };
+}
+
 /** Format a JD as a wall-clock time in `timeZone`, relative to `baseDate`/`jdBase`, noting the date if it rolls to the next day. */
 function formatSegmentTime(baseDate: Date, jdBase: number, jdTarget: number, timeZone: string): string {
   const ms = baseDate.getTime() + (jdTarget - jdBase) * 86400000;
@@ -443,6 +515,7 @@ export interface PanchangData {
   samvat: number;      // Shalivahana Saka year number (not shown on Today; retained for potential future reference/export use)
   samvatsara: string;  // 60-year cycle name, e.g. "Parabhava"
   solarSign: string;   // Current solar sign (Rashi)
+  varjyam: AbsoluteWindow | null; // Inauspicious window within today's nakshatra
 }
 
 const SOLAR_SIGN_NAMES = [
@@ -492,6 +565,7 @@ export function calculatePanchang(date: Date, timeZone: string): PanchangData {
   const tithiSegments = computeDaySegments(dayStartJD, localNoonDate, jd, elongationSidereal, 12, (i) => TITHI_NAMES[i], 30, timeZone);
   const karanaSegments = computeDaySegments(dayStartJD, localNoonDate, jd, elongationSidereal, 6, getKaranaName, 60, timeZone);
   const yogaSegments = computeDaySegments(dayStartJD, localNoonDate, jd, sumSidereal, yogaStep, (i) => YOGA_NAMES[i], 27, timeZone);
+  const varjyam = getVarjyam(jd, localNoonDate, jd);
 
   return {
     tithi: TITHI_NAMES[tithiIdx],
@@ -510,5 +584,6 @@ export function calculatePanchang(date: Date, timeZone: string): PanchangData {
     samvat: getShalivahanaYear(year, solarSignIdx),
     samvatsara: getSamvatsara(getShalivahanaYear(year, solarSignIdx)),
     solarSign: SOLAR_SIGN_NAMES[solarSignIdx],
+    varjyam,
   };
 }
