@@ -5,6 +5,7 @@ import { fetchSunTimes, getActiveSession, getSessionWindows, formatTime, type Su
 import { calculatePanchang, type PanchangData, type PanchangSegment } from "@/lib/panchang";
 import { buildSankalpamDesha, type SankalpamDesha } from "@/lib/sankalpam";
 import { toDateKey, type Location, getLocation } from "@/lib/storage";
+import { getTimeZone } from "@/lib/timezone";
 
 /** A single recited panchang item, shown as a full-width row (label left, value right) for easy top-to-bottom reading in recitation order. */
 function PanchangItem({ label, value }: { label: string, value: string }) {
@@ -65,11 +66,17 @@ export default function Today() {
 
   const today = new Date();
   const dateKey = toDateKey(today);
+  // Everything below is computed in the *saved location's* timezone, not the
+  // device's — otherwise times/dates would silently show in the browser's
+  // own zone whenever it differs from the location (e.g. Singapore viewed
+  // from a device set to IST).
+  const timeZone = location ? getTimeZone(location.lat, location.lng) : Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   useEffect(() => {
     const loc = getLocation();
     setLocationState(loc);
-    setPanchang(calculatePanchang(today));
+    const tz = loc ? getTimeZone(loc.lat, loc.lng) : Intl.DateTimeFormat().resolvedOptions().timeZone;
+    setPanchang(calculatePanchang(today, tz));
     if (loc) {
       setSankalpamDesha(buildSankalpamDesha(loc.city, loc.lat, loc.lng));
     }
@@ -80,7 +87,7 @@ export default function Today() {
         .then(times => {
           setSunTimes(times);
           setActiveSession(getActiveSession(new Date(), times));
-          setSessionWindows(getSessionWindows(times));
+          setSessionWindows(getSessionWindows(times, tz));
         })
         .catch(err => {
           console.error(err);
@@ -90,7 +97,7 @@ export default function Today() {
     }
   }, [dateKey]);
 
-  const dateStr = today.toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const dateStr = today.toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone });
 
   return (
     <div className="max-w-[480px] mx-auto min-h-[100dvh] bg-background text-foreground pb-16">
@@ -112,9 +119,9 @@ export default function Today() {
                 <div className="text-[17px] text-destructive font-medium">{sunError}</div>
               ) : sunTimes ? (
                 <div className="flex items-center gap-5 text-[17px] font-medium text-foreground/80">
-                  <span className="flex items-center gap-2"><Sunrise className="w-5 h-5 text-primary" /> {formatTime(sunTimes.sunrise)}</span>
+                  <span className="flex items-center gap-2"><Sunrise className="w-5 h-5 text-primary" /> {formatTime(sunTimes.sunrise, timeZone)}</span>
                   <span className="text-border/80">|</span>
-                  <span className="flex items-center gap-2"><Sunset className="w-5 h-5 text-primary" /> {formatTime(sunTimes.sunset)}</span>
+                  <span className="flex items-center gap-2"><Sunset className="w-5 h-5 text-primary" /> {formatTime(sunTimes.sunset, timeZone)}</span>
                 </div>
               ) : null}
 
@@ -144,21 +151,11 @@ export default function Today() {
                 Deśa · For Sankalpam
               </p>
               {sankalpamDesha ? (
-                <>
-                  {/* Full text for reading aloud */}
-                  <p className="text-[17px] leading-relaxed text-foreground font-medium italic mb-3">
-                    {sankalpamDesha.fullText}...
-                  </p>
-                  {/* Individual lines for easy reading */}
-                  <ol className="space-y-1 list-none">
-                    {sankalpamDesha.lines.map((line, i) => (
-                      <li key={i} className="flex items-start gap-2 text-[16px] text-foreground/80">
-                        <span className="text-primary font-bold shrink-0 w-5 text-right">{i + 1}.</span>
-                        <span>{line}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </>
+                // Full text for reading aloud (the numbered per-line breakdown was
+                // dropped since it just repeated this same text line-by-line).
+                <p className="text-[17px] leading-relaxed text-foreground font-medium italic">
+                  {sankalpamDesha.fullText}...
+                </p>
               ) : (
                 <p className="text-[15px] text-muted-foreground italic">
                   Set your location to see the Sankalpam deśa text.

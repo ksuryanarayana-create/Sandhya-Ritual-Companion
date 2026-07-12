@@ -76,12 +76,19 @@ export async function geocodeCity(cityName: string): Promise<GeoResult> {
   };
 }
 
-/** Format a Date to a readable 12-hour time string (local time). */
-export function formatTime(date: Date): string {
+/**
+ * Format a Date to a readable 12-hour time string.
+ * `timeZone` should be the *location's* IANA zone (see lib/timezone.ts) —
+ * without it, this defaults to the browser's own zone, which is wrong
+ * whenever the saved location differs from the device (e.g. viewing a
+ * Singapore location from a browser set to IST).
+ */
+export function formatTime(date: Date, timeZone?: string): string {
   return date.toLocaleTimeString("en-IN", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
+    ...(timeZone ? { timeZone } : {}),
   });
 }
 
@@ -92,10 +99,10 @@ export interface SessionWindows {
   sayam: string;     // 2 h before sunset → 30 min after sunset
 }
 
-export function getSessionWindows(sunTimes: SunTimes): SessionWindows {
+export function getSessionWindows(sunTimes: SunTimes, timeZone?: string): SessionWindows {
   const MIN  = 60 * 1000;
   const HOUR = 60 * MIN;
-  const fmt  = (d: Date) => formatTime(d);
+  const fmt  = (d: Date) => formatTime(d, timeZone);
 
   return {
     pratah: `${fmt(new Date(sunTimes.sunrise.getTime()  - 30 * MIN))} – ${fmt(new Date(sunTimes.sunrise.getTime()  + 2  * HOUR))}`,
