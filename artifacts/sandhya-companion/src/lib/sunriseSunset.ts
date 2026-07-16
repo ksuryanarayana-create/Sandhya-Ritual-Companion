@@ -129,12 +129,20 @@ const GULIKA_KALAM_PART = [7, 6, 5, 4, 3, 2, 1];
 const YAMAGANDAM_PART = [5, 4, 3, 2, 1, 7, 6];
 
 /**
- * 1-based index (1–15) of the daylight-fifteenth used for Dur Muhurtam, by weekday.
- * Every day has exactly one Dur Muhurtam window in this scheme (matches Drik Panchang);
- * some other panchang traditions show two windows for certain weekdays — that variant
- * could not be confidently sourced, so this app shows the single verified window.
+ * 1-based muhurta indices (1–15) for Dur Muhurtam, keyed by weekday (0=Sun…6=Sat).
+ * Each entry is an array because some weekdays have two inauspicious windows.
+ * Thursday (index 4) has two: the 6th and the 12th muhurta.
+ * Values verified directly from Drik Panchang (Singapore, Jul 2026).
  */
-const DUR_MUHURTAM_MUHURTA = [14, 9, 4, 8, 6, 4, 1];
+const DUR_MUHURTAM_MUHURTA: number[][] = [
+  [14],     // Sunday
+  [9],      // Monday
+  [4],      // Tuesday
+  [8],      // Wednesday
+  [6, 12],  // Thursday — two windows
+  [4],      // Friday
+  [1],      // Saturday
+];
 
 /** Abhijit Muhurta is always the 8th of the 15 daylight muhurtas, every day of the week. */
 const ABHIJIT_MUHURTA_INDEX = 8;
@@ -173,8 +181,8 @@ export function getAbhijitMuhurta(sunTimes: SunTimes): TimeWindow {
   return daylightFifteenth(sunTimes, ABHIJIT_MUHURTA_INDEX);
 }
 
-export function getDurMuhurtam(sunTimes: SunTimes, weekday: number): TimeWindow {
-  return daylightFifteenth(sunTimes, DUR_MUHURTAM_MUHURTA[weekday]);
+export function getDurMuhurtam(sunTimes: SunTimes, weekday: number): TimeWindow[] {
+  return DUR_MUHURTAM_MUHURTA[weekday].map(idx => daylightFifteenth(sunTimes, idx));
 }
 
 /** Determine which Sandhya session is currently active based on sun times. */

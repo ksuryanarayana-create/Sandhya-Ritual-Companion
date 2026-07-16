@@ -103,7 +103,7 @@ export default function Today() {
   const gulikaKalam: TimeWindow | null = sunTimes ? getGulikaKalam(sunTimes, weekday) : null;
   const yamagandam: TimeWindow | null = sunTimes ? getYamagandam(sunTimes, weekday) : null;
   const abhijitMuhurta: TimeWindow | null = sunTimes ? getAbhijitMuhurta(sunTimes) : null;
-  const durMuhurtam: TimeWindow | null = sunTimes ? getDurMuhurtam(sunTimes, weekday) : null;
+  const durMuhurtams: TimeWindow[] = sunTimes ? getDurMuhurtam(sunTimes, weekday) : [];
 
   useEffect(() => {
     const loc = getLocation();
@@ -221,7 +221,15 @@ export default function Today() {
                 <MuhurtaItem label="Rahu Kalam" window={rahuKalam} tone="inauspicious" timeZone={timeZone} />
                 <MuhurtaItem label="Gulika Kalam" window={gulikaKalam} tone="inauspicious" timeZone={timeZone} />
                 <MuhurtaItem label="Yamagandam" window={yamagandam} tone="inauspicious" timeZone={timeZone} />
-                <MuhurtaItem label="Dur Muhurtam" window={durMuhurtam} tone="inauspicious" timeZone={timeZone} />
+                {durMuhurtams.map((w, i) => (
+                  <MuhurtaItem
+                    key={i}
+                    label={durMuhurtams.length > 1 ? `Dur Muhurtam ${i + 1}` : "Dur Muhurtam"}
+                    window={w}
+                    tone="inauspicious"
+                    timeZone={timeZone}
+                  />
+                ))}
                 <MuhurtaItem label="Varjyam" window={panchang.varjyam} tone="inauspicious" timeZone={timeZone} />
                 <MuhurtaItem label="Abhijit Muhurta" window={abhijitMuhurta} tone="auspicious" timeZone={timeZone} />
               </div>
