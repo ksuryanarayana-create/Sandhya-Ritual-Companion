@@ -242,20 +242,34 @@ export const VARA_NAMES: { full: string; short: string }[] = [
   { full: "Shanivasara", short: "Saturday" },
 ];
 
-/** Telugu (Amanta) lunar month names, keyed by solar sign index */
+/**
+ * Telugu (Amanta) lunar month names keyed by solar sign index.
+ *
+ * In the Amanta system the month is named after the nakshatra in which the
+ * Purnima (full moon) falls.  Since the full moon is always ~180° from the
+ * sun, the naming lags the solar month by roughly one sign:
+ *
+ *   Sun in Mesha   → Purnima near Tula/Vishakha  → Vaisakha
+ *   Sun in Vrishabha → Purnima near Vrischika/Jyeshtha → Jyeshtha
+ *   Sun in Mithuna  → Purnima near Dhanu/Ashadha → Ashadha   ← July 16 ✓
+ *   Sun in Karka    → Purnima near Makara/Shravana → Shravana
+ *   … and so on.
+ *
+ * The previous table was off by one (Mithuna→Jyeshtha, Karka→Ashadha, …).
+ */
 export const TELUGU_MASA_NAMES: string[] = [
-  "Chaitra",    // Mesha
-  "Vaisakha",   // Vrishabha
-  "Jyeshtha",   // Mithuna
-  "Ashadha",    // Karka
-  "Shravana",   // Simha
-  "Bhadrapada", // Kanya
-  "Ashwayuja",  // Tula
-  "Kartika",    // Vrischika
-  "Margashira", // Dhanu
-  "Pushya",     // Makara
-  "Magha",      // Kumbha
-  "Phalguna",   // Meena
+  "Vaisakha",   // Mesha     (0)
+  "Jyeshtha",   // Vrishabha (1)
+  "Ashadha",    // Mithuna   (2)
+  "Shravana",   // Karka     (3)
+  "Bhadrapada", // Simha     (4)
+  "Ashwayuja",  // Kanya     (5)
+  "Kartika",    // Tula      (6)
+  "Margashira", // Vrischika (7)
+  "Pushya",     // Dhanu     (8)
+  "Magha",      // Makara    (9)
+  "Phalguna",   // Kumbha    (10)
+  "Chaitra",    // Meena     (11)
 ];
 
 /** Ritu (season) based on Telugu solar month index (pairs of months) */
