@@ -1,0 +1,1 @@
+- [Sandhya Companion masa calculation](masa-calculation.md) — Amanta masa must use Sankranti-within-month, not Purnima nakshatra or today's solar sign.

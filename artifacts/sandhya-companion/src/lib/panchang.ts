@@ -243,34 +243,97 @@ export const VARA_NAMES: { full: string; short: string }[] = [
 ];
 
 /**
- * Telugu (Amanta) lunar month names keyed by solar sign index.
+ * Telugu (Amanta) lunar month names, keyed by solar sign index (0 = Mesha … 11 = Meena).
  *
- * In the Amanta system the month is named after the nakshatra in which the
- * Purnima (full moon) falls.  Since the full moon is always ~180° from the
- * sun, the naming lags the solar month by roughly one sign:
- *
- *   Sun in Mesha   → Purnima near Tula/Vishakha  → Vaisakha
- *   Sun in Vrishabha → Purnima near Vrischika/Jyeshtha → Jyeshtha
- *   Sun in Mithuna  → Purnima near Dhanu/Ashadha → Ashadha   ← July 16 ✓
- *   Sun in Karka    → Purnima near Makara/Shravana → Shravana
- *   … and so on.
- *
- * The previous table was off by one (Mithuna→Jyeshtha, Karka→Ashadha, …).
+ * The correct rule: an Amanta lunar month is named after the solar Sankranti
+ * (sun crossing a 30° sidereal boundary) that falls *within* that month.
+ * The solar sign the sun ENTERS at that Sankranti determines the name:
+ *   Karka (3) → Ashadha, Simha (4) → Shravana, … verified against Drik Panchang.
+ * DO NOT index this table by today's solar sign — use getMasaFromSankranti().
  */
 export const TELUGU_MASA_NAMES: string[] = [
-  "Vaisakha",   // Mesha     (0)
-  "Jyeshtha",   // Vrishabha (1)
-  "Ashadha",    // Mithuna   (2)
-  "Shravana",   // Karka     (3)
-  "Bhadrapada", // Simha     (4)
-  "Ashwayuja",  // Kanya     (5)
-  "Kartika",    // Tula      (6)
-  "Margashira", // Vrischika (7)
-  "Pushya",     // Dhanu     (8)
-  "Magha",      // Makara    (9)
-  "Phalguna",   // Kumbha    (10)
-  "Chaitra",    // Meena     (11)
+  "Chaitra",    // Mesha     (0) — month containing Mesha Sankranti (~Apr 14)
+  "Vaisakha",   // Vrishabha (1) — month containing Vrishabha Sankranti (~May 15)
+  "Jyeshtha",   // Mithuna   (2) — month containing Mithuna Sankranti (~Jun 15)
+  "Ashadha",    // Karka     (3) — month containing Karka Sankranti (~Jul 17) ✓ Drik-verified
+  "Shravana",   // Simha     (4)
+  "Bhadrapada", // Kanya     (5)
+  "Ashwayuja",  // Tula      (6)
+  "Kartika",    // Vrischika (7)
+  "Margashira", // Dhanu     (8)
+  "Pushya",     // Makara    (9)
+  "Magha",      // Kumbha   (10)
+  "Phalguna",   // Meena    (11)
 ];
+
+/**
+ * Find the JD of the previous Amavasya (new moon, elongation ≡ 0°) before `jd`.
+ * Newton's method on the elongation function; ~6 iterations is sufficient.
+ * Elongation changes at ~12.2°/day (moon ~13.2°/day minus sun ~1.0°/day).
+ */
+function getPrevAmavasya(jd: number): number {
+  let est = jd - elongationSidereal(jd) / 12.2;
+  for (let i = 0; i < 6; i++) {
+    const e = elongationSidereal(est);
+    // Signed error from 0°: treat e > 180° as a negative distance from the *next* new moon
+    est -= (e > 180 ? e - 360 : e) / 12.2;
+  }
+  return est;
+}
+
+/**
+ * Find the JD of the next Amavasya (new moon, elongation ≡ 0°) after `jd`.
+ */
+function getNextAmavasya(jd: number): number {
+  let est = jd + (360 - elongationSidereal(jd)) / 12.2;
+  for (let i = 0; i < 6; i++) {
+    const e = elongationSidereal(est);
+    est -= (e > 180 ? e - 360 : e) / 12.2;
+  }
+  return est;
+}
+
+/**
+ * Return the Amanta masa name for the lunar month that contains `jd`.
+ *
+ * Correct algorithm:
+ *  1. Find the Amavasyas that bracket this date (previous and next new moons).
+ *  2. Find the solar Sankranti (sun crossing a 30° sidereal boundary) that
+ *     falls within that window.
+ *  3. The solar sign the sun ENTERS at that Sankranti gives the masa name via
+ *     TELUGU_MASA_NAMES.
+ *  4. If no Sankranti falls within the lunar month it is an Adhika (intercalary)
+ *     month; it borrows the name of the following Nija month's Sankranti.
+ *
+ * This handles the ~8-day lag between Sankranti and Amavasya correctly, and
+ * automatically resolves adhika-masa years without any special-case code.
+ */
+function getMasaFromSankranti(jd: number): string {
+  const prevAmavasya = getPrevAmavasya(jd);
+  const nextAmavasya = getNextAmavasya(jd);
+
+  // Find the next solar Sankranti starting from the previous Amavasya.
+  // maxDays = 35 safely covers the full ~29.5-day lunar month plus a cushion.
+  const sankrantiJD = findBoundaryCrossing(
+    prevAmavasya,
+    (j: number) => toSidereal(sunLongitude(j), j),
+    30,
+    35,
+  );
+
+  // Read the solar sign the sun has just entered (0.01 days ≈ 15 min after crossing).
+  const sunAfter = toSidereal(sunLongitude(sankrantiJD + 0.01), sankrantiJD + 0.01);
+  const signIdx = Math.floor(sunAfter / 30) % 12;
+
+  if (sankrantiJD < nextAmavasya) {
+    // Nija (regular) month: a Sankranti falls within this lunar month.
+    return TELUGU_MASA_NAMES[signIdx];
+  } else {
+    // Adhika (intercalary) month: no Sankranti this month.
+    // Convention: show "Adhika <next-month-name>" so the user knows it is the extra month.
+    return `Adhika ${TELUGU_MASA_NAMES[signIdx]}`;
+  }
+}
 
 /** Ritu (season) based on Telugu solar month index (pairs of months) */
 export const RITU_NAMES: string[] = [
@@ -592,7 +655,7 @@ export function calculatePanchang(date: Date, timeZone: string): PanchangData {
     karanaSegments,
     yogaSegments,
     vara: VARA_NAMES[weekday].full,
-    masa: TELUGU_MASA_NAMES[solarSignIdx],
+    masa: getMasaFromSankranti(jd),
     ritu: RITU_NAMES[Math.floor(solarSignIdx / 2)],
     ayana: getAyana(sLon),
     samvat: getShalivahanaYear(year, solarSignIdx),
