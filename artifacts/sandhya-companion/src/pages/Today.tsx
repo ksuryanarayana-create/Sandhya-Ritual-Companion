@@ -136,7 +136,7 @@ export default function Today() {
     <div className="max-w-[480px] mx-auto min-h-[100dvh] bg-background text-foreground pb-16">
       <div className="p-4 md:p-6 space-y-8">
         <header className="space-y-5 text-center mt-4">
-          <h1 className="text-4xl md:text-[42px] leading-tight font-serif font-bold text-primary">Sandhya Companion</h1>
+          <h1 className="text-4xl md:text-[42px] leading-tight font-serif font-bold text-primary">Sandhyā</h1>
           <div className="text-[22px] font-medium text-foreground/90">{dateStr}</div>
           
           {location ? (

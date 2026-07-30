@@ -1,5 +1,5 @@
 /**
- * localStorage helpers for Sandhya Companion.
+ * localStorage helpers for Sandhyā.
  * All user data stays on-device — no server, no login.
  */
 
