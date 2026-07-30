@@ -31,7 +31,13 @@ export default function Settings() {
     setErrorMsg(null);
     try {
       const result = await geocodeCity(data.cityName);
-      const newLoc: Location = { city: result.city, lat: result.lat, lng: result.lng };
+      const newLoc: Location = {
+        city: result.city,
+        lat: result.lat,
+        lng: result.lng,
+        state: result.state,
+        countryCode: result.countryCode,
+      };
       setLocation(newLoc);
       navigate("/");
     } catch (err: any) {

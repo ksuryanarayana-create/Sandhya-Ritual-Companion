@@ -111,7 +111,7 @@ export default function Today() {
     const tz = loc ? getTimeZone(loc.lat, loc.lng) : Intl.DateTimeFormat().resolvedOptions().timeZone;
     setPanchang(calculatePanchang(today, tz));
     if (loc) {
-      setSankalpamDesha(buildSankalpamDesha(loc.city, loc.lat, loc.lng));
+      setSankalpamDesha(buildSankalpamDesha(loc.city, loc.lat, loc.lng, loc.state, loc.countryCode));
     }
 
     if (loc) {

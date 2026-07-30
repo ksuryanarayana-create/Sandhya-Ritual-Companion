@@ -49,6 +49,10 @@ export interface GeoResult {
   lat: number;
   lng: number;
   displayName: string;
+  /** State / province from geocoding (e.g. "Massachusetts", "Tamil Nadu") */
+  state?: string;
+  /** ISO 3166-1 alpha-2 country code in lowercase (e.g. "us", "in", "sg") */
+  countryCode?: string;
 }
 
 export async function geocodeCity(cityName: string): Promise<GeoResult> {
@@ -61,7 +65,10 @@ export async function geocodeCity(cityName: string): Promise<GeoResult> {
     lat: string;
     lon: string;
     display_name: string;
-    address?: { city?: string; town?: string; village?: string; county?: string; state?: string };
+    address?: {
+      city?: string; town?: string; village?: string; county?: string;
+      state?: string; country_code?: string;
+    };
   }>;
   if (!json.length) throw new Error(`No results found for "${cityName}"`);
   const result = json[0];
@@ -73,6 +80,8 @@ export async function geocodeCity(cityName: string): Promise<GeoResult> {
     lat: parseFloat(result.lat),
     lng: parseFloat(result.lon),
     displayName: result.display_name,
+    state: addr?.state,
+    countryCode: addr?.country_code?.toLowerCase(),
   };
 }
 

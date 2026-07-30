@@ -9,6 +9,10 @@ export interface Location {
   city: string;
   lat: number;
   lng: number;
+  /** State / province name from geocoding (e.g. "Massachusetts", "Tamil Nadu") */
+  state?: string;
+  /** ISO 3166-1 alpha-2 country code in lowercase (e.g. "us", "in", "sg") */
+  countryCode?: string;
 }
 
 // ─── Keys ────────────────────────────────────────────────────────────────────

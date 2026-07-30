@@ -218,6 +218,44 @@ function lookupCityDirection(city: string): string | null {
   return null; // fall back to computed bearing
 }
 
+// ─── North America geography ──────────────────────────────────────────────────
+
+/**
+ * Bounding boxes for major North American regions.
+ * Used to select the appropriate ocean/mountain deśa qualifier.
+ */
+const NA_BOUNDS = {
+  /** Contiguous USA + southern Canada */
+  northAmerica: { latMin: 25, latMax: 72, lngMin: -168, lngMax: -52 },
+  /** East of the Rockies — add Atlantic reference */
+  eastOfRockies: { lngMin: -105, lngMax: -52 },
+  /** West of the Rockies — add Pacific reference */
+  westOfRockies: { lngMin: -168, lngMax: -105 },
+};
+
+/** True if the coordinates are within North America (USA / Canada / Mexico). */
+function isNorthAmerica(lat: number, lng: number): boolean {
+  const b = NA_BOUNDS.northAmerica;
+  return lat >= b.latMin && lat <= b.latMax && lng >= b.lngMin && lng <= b.lngMax;
+}
+
+/**
+ * Build the ocean/mountain localising qualifier for a North American location.
+ *
+ * Coastal positions: "Atlantic sāgara pūrva tīre" / "Pacific sāgara paścima tīre"
+ * Inland positions:  "Atlantic-Pacific sāgarayormadhya deśe" (traditional general form)
+ *
+ * Additionally, interior/mountain-west positions mention the Rockies.
+ */
+function naOceanQualifier(lat: number, lng: number): string {
+  // East coast (longitude > -80°)
+  if (lng > -80) return "Atlantic sāgara pūrva tīre";
+  // West coast (longitude < -115°)
+  if (lng < -115) return "Pacific sāgara paścima tīre";
+  // Everything else (central, mountain west, Great Plains): general form
+  return "Atlantic-Pacific sāgarayormadhya deśe";
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export interface SankalpamDesha {
@@ -230,39 +268,55 @@ export interface SankalpamDesha {
 /**
  * Generate the Sankalpam deśa phrase for any saved location.
  *
- * @param city        City name from geocoding (e.g. "Hyderabad", "Singapore")
+ * India / Andhra-Telangana   → traditional Śrīśailam-relative form
+ * North America (USA/Canada) → Krauñca-dvīpa / Rāmanaka-varṣa / uttara-amerukā form
+ * Everywhere else            → Meroḥ dakṣiṇa digbhāge + Śrīśailam direction + city
+ *
+ * @param city        City name from geocoding (e.g. "Hyderabad", "Boston")
  * @param lat         Latitude
  * @param lng         Longitude
+ * @param state       State / province from geocoding (e.g. "Massachusetts")
+ * @param countryCode ISO 3166-1 alpha-2 lowercase (e.g. "us", "ca", "in")
  */
 export function buildSankalpamDesha(
   city: string,
   lat: number,
   lng: number,
+  state?: string,
+  countryCode?: string,
 ): SankalpamDesha {
+  // ── North America branch ──────────────────────────────────────────────────
+  if (
+    (countryCode === "us" || countryCode === "ca" || countryCode === "mx") ||
+    (!countryCode && isNorthAmerica(lat, lng))
+  ) {
+    return buildNorthAmericaDesha(city, lat, lng, state, countryCode);
+  }
+
+  // ── India / rest-of-world branch ──────────────────────────────────────────
   const lines: string[] = [];
 
-  // 1. Everyone is south of cosmic Mount Meru (the North Pole in Hindu cosmology)
+  // 1. South of cosmic Mount Meru (applicable to India and most of the world)
   lines.push("Meroḥ dakṣiṇa digbhāge");
 
   // 2. Direction from Śrīśailam to current location
-  // Use traditional lookup first; fall back to computed bearing for unknown cities.
   const dir =
     lookupCityDirection(city) ??
     bearingToSanskritDir(computeBearing(SRISHAILAM, { lat, lng }));
   lines.push(`Śrīśailasya ${dir} digbhāge`);
 
-  // 3. Kṛṣṇā-Godāvarī reference: known AP/Telangana cities take priority;
-  //    unknown cities fall back to a tighter geographic box that excludes
-  //    Bangalore, Chennai and other bordering cities.
+  // 3. Kṛṣṇā-Godāvarī reference for Andhra Pradesh / Telangana
   const cityKey = city.toLowerCase().trim();
-  const isKnownAPCity = ANDHRA_TELANGANA_CITIES.has(cityKey) ||
-    [...ANDHRA_TELANGANA_CITIES].some(k => cityKey.startsWith(k) || k.startsWith(cityKey));
+  const isKnownAPCity =
+    ANDHRA_TELANGANA_CITIES.has(cityKey) ||
+    [...ANDHRA_TELANGANA_CITIES].some(
+      k => cityKey.startsWith(k) || k.startsWith(cityKey),
+    );
   const inFallbackBox =
     lat >= ANDHRA_TELANGANA_FALLBACK.latMin &&
     lat <= ANDHRA_TELANGANA_FALLBACK.latMax &&
     lng >= ANDHRA_TELANGANA_FALLBACK.lngMin &&
     lng <= ANDHRA_TELANGANA_FALLBACK.lngMax;
-
   if (isKnownAPCity || inFallbackBox) {
     lines.push("Kṛṣṇā Godāvaryoḥ madhyadeśe");
   }
@@ -270,10 +324,8 @@ export function buildSankalpamDesha(
   // 4. City name
   let cityPhrase = lookupCityName(city);
   if (!cityPhrase) {
-    // Capitalise and choose suffix based on whether the location seems Indian
     const isIndia = lat >= 8 && lat <= 37 && lng >= 68 && lng <= 97;
     const suffix = isIndia ? "nagare" : "mahānagare";
-    // Capitalise first letter of each word for a clean transliteration
     const capitalised = city
       .split(/\s+/)
       .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
@@ -285,8 +337,75 @@ export function buildSankalpamDesha(
   // 5. At one's own home
   lines.push("sva-gṛhe");
 
-  return {
-    fullText: lines.join(", "),
-    lines,
-  };
+  return { fullText: lines.join(", "), lines };
+}
+
+// ─── North America deśa builder ───────────────────────────────────────────────
+
+/**
+ * Traditional Purāṇic cosmological deśa for North American locations.
+ *
+ * Structure (per Smārta Vedic tradition for diaspora):
+ *   Meroḥ paścima digbhāge           — west of Mount Meru
+ *   Krauñca dvīpe                    — Krauñca continent (Purāṇic name for North America)
+ *   Rāmanaka varṣe, Aindra khaṇḍe   — sub-region / zone
+ *   Uttara amerukāyām                — North America
+ *   [ocean qualifier]                — Atlantic / Pacific / between both oceans
+ *   [State]-rāṣṭre                   — state (if known)
+ *   [City] mahānagare                — city
+ *   sva-gṛhe
+ */
+function buildNorthAmericaDesha(
+  city: string,
+  lat: number,
+  lng: number,
+  state?: string,
+  countryCode?: string,
+): SankalpamDesha {
+  const lines: string[] = [];
+
+  // 1. Direction from Meru — North America is to the west
+  lines.push("Meroḥ paścima digbhāge");
+
+  // 2. Purāṇic continent — Krauñca Dvīpa
+  lines.push("Krauñca dvīpe");
+
+  // 3. Sub-region within Krauñca Dvīpa
+  lines.push("Rāmanaka varṣe, Aindra khaṇḍe");
+
+  // 4. Landmass
+  if (countryCode === "ca") {
+    lines.push("Uttara amerukāyām");           // Canada is still "North America"
+  } else {
+    lines.push("Uttara amerukāyām");
+  }
+
+  // 5. Ocean / geographic qualifier
+  lines.push(naOceanQualifier(lat, lng));
+
+  // 6. State / province
+  if (state) {
+    // Capitalise each word; append -rāṣṭre (state/province)
+    const statePhrase = state
+      .split(/\s+/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+    lines.push(`${statePhrase}-rāṣṭre`);
+  }
+
+  // 7. City — use lookup table first, then auto-form
+  let cityPhrase = lookupCityName(city);
+  if (!cityPhrase) {
+    const capitalised = city
+      .split(/\s+/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+    cityPhrase = `${capitalised} mahānagare`;
+  }
+  lines.push(cityPhrase);
+
+  // 8. At one's own home
+  lines.push("sva-gṛhe");
+
+  return { fullText: lines.join(", "), lines };
 }

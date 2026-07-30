@@ -1,0 +1,20 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "3R7A3b-FwCZ8yL9LgmsMM"
+uri = "file://artifacts/sandhya-companion/public/icon-option-a.png"
+type = "image"
+title = "Icon Option A — Panchamukhi Gayatri Mata"
+
+[[outputs]]
+id = "Kxh6bSIum-D1Nxg16tmgm"
+uri = "file://artifacts/sandhya-companion/public/icon-option-b.png"
+type = "image"
+title = "Icon Option B — Gayatri Mata with Sunrise Halo"
+
+[[outputs]]
+id = "n66lm1zwJ9z4kTCIzSFVZ"
+uri = "file://artifacts/sandhya-companion/public/icon-option-c.png"
+type = "image"
+title = "Icon Option C — Tanjore-style Full Figure"
