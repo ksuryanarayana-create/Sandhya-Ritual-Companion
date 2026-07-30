@@ -53,7 +53,7 @@ function MuhurtaItem({
   return (
     <div className="flex items-baseline justify-between gap-3 py-2.5 border-b border-[#e2cca4] dark:border-[#4a2e15] last:border-b-0">
       <span className="text-[13px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">{label}</span>
-      <span className={`text-lg font-medium text-right ${tone === "inauspicious" ? "text-destructive" : "text-primary"}`}>
+      <span className={`text-lg font-medium text-right ${tone === "auspicious" ? "text-emerald-600" : "text-foreground"}`}>
         {window ? `${formatTime(window.start, timeZone)} – ${formatTime(window.end, timeZone)}` : "—"}
       </span>
     </div>
