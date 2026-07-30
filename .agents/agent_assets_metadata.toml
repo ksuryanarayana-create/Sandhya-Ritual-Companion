@@ -18,3 +18,9 @@ id = "n66lm1zwJ9z4kTCIzSFVZ"
 uri = "file://artifacts/sandhya-companion/public/icon-option-c.png"
 type = "image"
 title = "Icon Option C — Tanjore-style Full Figure"
+
+[[outputs]]
+id = "d6w0U2WcJVrJygRSJ_-ZI"
+uri = "file://artifacts/sandhya-companion/public/icon-option-d.png"
+type = "image"
+title = "Icon Option D — Tanjore Panchamukhi Gayatri Mata"
