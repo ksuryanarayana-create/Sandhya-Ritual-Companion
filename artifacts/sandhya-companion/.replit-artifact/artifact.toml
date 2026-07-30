@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Sandhya Companion"
+title = "Sandhyā"
 version = "1.0.0"
 id = "artifacts/sandhya-companion"
 router = "path"
