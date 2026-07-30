@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/panchang-companion/"
+title = "Telugu Panchang"
+version = "1.0.0"
+id = "artifacts/panchang-companion"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/panchang-companion/" ]
+localPort = 20005
+
+[services.development]
+run = "pnpm --filter @workspace/panchang-companion run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/panchang-companion", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/panchang-companion/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20005"
+BASE_PATH = "/panchang-companion/"
