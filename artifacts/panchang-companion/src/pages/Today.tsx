@@ -7,7 +7,7 @@ import {
   getLang,
 } from "@/lib/storage";
 import type { Lang } from "@/lib/storage";
-import { heading, label, val, pakshaLabel, varaDisplay } from "@/lib/i18n";
+import { heading, label, val, pakshaLabel, varaDisplay, ui } from "@/lib/i18n";
 import { calculatePanchang } from "@/lib/panchang";
 import {
   fetchSunTimes,
@@ -561,7 +561,7 @@ export default function Today() {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground italic">Set location to see Sankalpam deśa.</p>
+                <p className="text-sm text-muted-foreground italic">{ui(lang, "setLocationSankalpam")}</p>
               )}
             </CardContent>
           </Card>

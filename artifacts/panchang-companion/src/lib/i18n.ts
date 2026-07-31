@@ -199,3 +199,24 @@ export function varaDisplay(lang: Lang, vara: string, varaShort: string): string
   if (lang === "te") return te;
   return `${te} · ${varaShort}`;
 }
+
+// ─── UI strings (page copy) ───────────────────────────────────────────────────
+
+const UI_STRINGS: Record<string, { en: string; te: string }> = {
+  upcomingEvents:        { en: "Upcoming Events",      te: "రాబోయే పండుగలు" },
+  setLocationToSeeEvents:{ en: "Set your location to see the next 90 days of important panchang events.", te: "మీ స్థానాన్ని సెట్ చేయండి — రాబోయే 90 రోజుల ముఖ్యమైన పంచాంగ వివరాలు చూడండి." },
+  setYourLocation:       { en: "Set Your Location",    te: "స్థానం సెట్ చేయండి" },
+  loadingEvents:         { en: "Loading events…",      te: "వివరాలు లోడవుతున్నాయి…" },
+  upcoming:              { en: "Upcoming",             te: "రాబోయే" },
+  next90Days:            { en: "The next 90 days of important events", te: "రాబోయే 90 రోజుల ముఖ్యమైన వివరాలు" },
+  noEventsFound:         { en: "No upcoming events found.", te: "రాబోయే వివరాలేవీ కనిపించడం లేదు." },
+  setLocationSankalpam:  { en: "Set location to see Sankalpam deśa.", te: "సంకల్పం చూడటానికి స్థానం సెట్ చేయండి." },
+};
+
+/** Returns a UI copy string in the chosen language. */
+export function ui(lang: Lang, key: string): string {
+  const s = UI_STRINGS[key];
+  if (!s) return key;
+  if (lang === "en") return s.en;
+  return s.te; // both 'te' and 'te-en' show Telugu UI copy
+}
