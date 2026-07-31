@@ -98,11 +98,20 @@ export const FESTIVAL_RULES: FestivalRule[] = [
     masaName: "Ashwayuja", tithiIdx: 9, isFasting: false,
   },
   {
+    // In Amanta (Telugu) system, Diwali falls in Ashwayuja month (= Purnimanta "Kartika").
+    // Naraka Chaturdashi = Ashwayuja Krishna Chaturdashi (day before Amavasya).
     name: "Deepavali (Naraka Chaturdashi)",
-    note: "Festival of lights — Kartika Krishna Chaturdashi. Lamps lit before sunrise.",
-    masaName: "Kartika", tithiIdx: 28, isFasting: false,
+    note: "Festival of lights — Naraka Chaturdashi. Lamps lit at dawn to celebrate victory over Narakasura.",
+    masaName: "Ashwayuja", tithiIdx: 28, isFasting: false,
   },
   {
+    // Main Diwali night — Lakshmi Puja falls on the Amavasya closing the Ashwayuja Amanta month.
+    name: "Deepavali (Lakshmi Puja)",
+    note: "Diwali main night — Lakshmi Puja on Ashwayuja Amavasya. Most auspicious time for wealth worship.",
+    masaName: "Ashwayuja", tithiIdx: 29, isFasting: false,
+  },
+  {
+    // Karthika Purnima is Purnima within Kartika Amanta month (starts after Ashwayuja Amavasya).
     name: "Karthika Purnima",
     note: "Highly auspicious full moon — lamps lit at Shiva temples all night.",
     masaName: "Kartika", tithiIdx: 14, isFasting: false,
@@ -113,9 +122,11 @@ export const FESTIVAL_RULES: FestivalRule[] = [
     masaName: "Margashira", tithiIdx: 10, isFasting: true,
   },
   {
+    // In Amanta (Telugu) system, Shivaratri falls in Magha month (sun in Kumbha/Aquarius).
+    // Purnimanta calls this "Phalguna Krishna 14" but the Amanta masa is Magha.
     name: "Maha Shivaratri",
-    note: "Phalguna Krishna Chaturdashi — great night of Shiva. All-night vigil and fasting.",
-    masaName: "Phalguna", tithiIdx: 28, isFasting: true,
+    note: "Great night of Shiva — all-night vigil and fasting. Magha Krishna Chaturdashi in Telugu calendar.",
+    masaName: "Magha", tithiIdx: 28, isFasting: true,
   },
 ];
 
