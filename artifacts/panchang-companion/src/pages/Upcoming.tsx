@@ -33,7 +33,7 @@ export default function Upcoming() {
 
     const tz = getTimeZone(loc.lat, loc.lng);
     const today = new Date();
-    const events = getUpcomingEvents(today, tz, 45);
+    const events = getUpcomingEvents(today, tz, 90);
     const grouped = groupEventsByWeek(events, today);
     setGroups(grouped);
     setLoading(false);
@@ -48,7 +48,7 @@ export default function Upcoming() {
           </CardHeader>
           <CardContent className="space-y-4 text-center">
             <p className="text-muted-foreground leading-relaxed">
-              Set your location to see the next 45 days of important panchang events.
+              Set your location to see the next 90 days of important panchang events.
             </p>
             <Link href="/settings" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity">
               <MapPin className="w-5 h-5" />
@@ -84,7 +84,7 @@ export default function Upcoming() {
             </div>
           </div>
           <p className="text-lg text-muted-foreground">
-            The next 45 days of important events
+            The next 90 days of important events
           </p>
         </div>
       </div>
