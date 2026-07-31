@@ -24,3 +24,27 @@ id = "d6w0U2WcJVrJygRSJ_-ZI"
 uri = "file://artifacts/sandhya-companion/public/icon-option-d.png"
 type = "image"
 title = "Icon Option D — Tanjore Panchamukhi Gayatri Mata"
+
+[[outputs]]
+id = "chw_40CNqmisCYJdCBHS0"
+uri = "file://artifacts/panchang-companion/src/assets/icon-surya.png"
+type = "image"
+title = "Option A — Surya (Sun God)"
+
+[[outputs]]
+id = "3FmRSAoANdFyZR6GfgSWB"
+uri = "file://artifacts/panchang-companion/src/assets/icon-almanac.png"
+type = "image"
+title = "Option B — Panchanga Almanac scroll"
+
+[[outputs]]
+id = "AprQophRDUTZet0FsNKFi"
+uri = "file://artifacts/panchang-companion/src/assets/icon-lotus-mandala.png"
+type = "image"
+title = "Option C — Lotus Mandala / Sunrise"
+
+[[outputs]]
+id = "ZN4J_yNyt1mHE1k6jnmNW"
+uri = "file://artifacts/panchang-companion/src/assets/icon-navagraha.png"
+type = "image"
+title = "Option D — Navagraha Yantra"
