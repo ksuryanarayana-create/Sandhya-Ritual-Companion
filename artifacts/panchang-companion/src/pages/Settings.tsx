@@ -5,24 +5,34 @@ import {
   clearLocationAt,
   getActiveLocationIndex,
   setActiveLocationIndex,
+  getLang,
+  setLang,
 } from "@/lib/storage";
+import type { Lang } from "@/lib/storage";
 import { geocodeCity } from "@/lib/sunriseSunset";
 import { getTimeZone } from "@/lib/timezone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { MapPin, Search, Trash2, CheckCircle2 } from "lucide-react";
+import { MapPin, Search, Trash2, CheckCircle2, Languages } from "lucide-react";
 import type { Location } from "@/lib/storage";
 
 const SLOT_LABELS = ["Location 1", "Location 2", "Location 3"];
 const SLOT_SUBTITLES = ["Primary / Home", "Family / Parents", "Travel / Work"];
+
+const LANG_OPTIONS: { value: Lang; label: string; sublabel: string }[] = [
+  { value: "en",    label: "English",               sublabel: "All labels and values in English" },
+  { value: "te",    label: "తెలుగు",                sublabel: "Labels and values in Telugu script" },
+  { value: "te-en", label: "తెలుగు + English",      sublabel: "Telugu primary, English in brackets" },
+];
 
 export default function Settings() {
   const [locations, setLocations] = useState<(Location | null)[]>(getLocations());
   const [activeIdx, setActiveIdx] = useState<0 | 1 | 2>(getActiveLocationIndex());
   const [inputs, setInputs] = useState(["", "", ""]);
   const [loadingIdx, setLoadingIdx] = useState<number | null>(null);
+  const [lang, setLangState] = useState<Lang>(getLang());
   const { toast } = useToast();
 
   const handleSearch = async (slotIdx: 0 | 1 | 2) => {
@@ -66,7 +76,6 @@ export default function Settings() {
     const updated = [...locations] as (Location | null)[];
     updated[slotIdx] = null;
     setLocations(updated);
-    // If cleared slot was active, find next filled
     if (activeIdx === slotIdx) {
       const next = updated.findIndex((l) => l !== null);
       const newActive = (next >= 0 ? next : 0) as 0 | 1 | 2;
@@ -83,6 +92,12 @@ export default function Settings() {
     toast({ title: `Switched to ${SLOT_LABELS[slotIdx]}`, description: locations[slotIdx]!.city });
   };
 
+  const handleLangChange = (l: Lang) => {
+    setLang(l);
+    setLangState(l);
+    toast({ title: "Language updated", description: LANG_OPTIONS.find((o) => o.value === l)?.label });
+  };
+
   return (
     <div className="min-h-[100dvh] pb-24">
       {/* Header */}
@@ -96,7 +111,49 @@ export default function Settings() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* 3-column location grid */}
+
+        {/* ── Language ── */}
+        <Card className="border-accent/40 bg-accent/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-serif text-xl flex items-center gap-2">
+              <Languages className="w-5 h-5 text-accent" />
+              Language · భాష
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Choose how panchang values are displayed on the Today page
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {LANG_OPTIONS.map((opt) => {
+                const isSelected = lang === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => handleLangChange(opt.value)}
+                    className={`rounded-xl border-2 p-4 text-left transition-all ${
+                      isSelected
+                        ? "border-secondary bg-secondary/8 shadow-sm"
+                        : "border-border bg-background hover:border-secondary/40 hover:bg-secondary/5"
+                    }`}
+                  >
+                    <div className={`font-semibold text-base mb-1 ${isSelected ? "text-secondary" : "text-foreground"}`}>
+                      {opt.label}
+                    </div>
+                    <div className="text-xs text-muted-foreground leading-snug">{opt.sublabel}</div>
+                    {isSelected && (
+                      <div className="mt-2">
+                        <CheckCircle2 className="w-4 h-4 text-secondary" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── 3-column location grid ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {([0, 1, 2] as const).map((slotIdx) => {
             const loc = locations[slotIdx];
@@ -176,7 +233,7 @@ export default function Settings() {
                     <div className="text-sm text-muted-foreground italic pb-1">Not set</div>
                   )}
 
-                  {/* Search input — always shown */}
+                  {/* Search input */}
                   <div className="space-y-1.5">
                     <div className="text-xs text-muted-foreground">
                       {loc ? "Change city" : "Add city"}

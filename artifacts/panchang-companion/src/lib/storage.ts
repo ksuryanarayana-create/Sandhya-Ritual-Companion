@@ -111,6 +111,31 @@ export function clearLocation(): void {
   clearLocationAt(getActiveLocationIndex());
 }
 
+// ─── Language preference ───────────────────────────────────────────────────
+
+const LANG_KEY = "pc:lang";
+export type Lang = "en" | "te" | "te-en";
+
+export function getLang(): Lang {
+  try {
+    const raw = localStorage.getItem(LANG_KEY);
+    if (raw === "te" || raw === "te-en") return raw;
+    return "en";
+  } catch {
+    return "en";
+  }
+}
+
+export function setLang(lang: Lang): void {
+  try {
+    localStorage.setItem(LANG_KEY, lang);
+  } catch {
+    // Ignore
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function toDateKey(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
