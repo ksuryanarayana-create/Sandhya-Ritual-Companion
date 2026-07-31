@@ -130,60 +130,44 @@ const EVENT_ICONS: Record<string, string> = {
 
 function GuidanceStrip({
   significance,
-  todayEvents,
   upcomingNext,
   selectedDate,
 }: {
   significance: TodaySignificance;
-  todayEvents: UpcomingEvent[];
   upcomingNext: UpcomingEvent[];
   selectedDate: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const fromDate = parseDateString(selectedDate);
 
-  const hasAnything = significance.hasSignificance || todayEvents.length > 0 || upcomingNext.length > 0;
+  const hasAnything = significance.hasSignificance || upcomingNext.length > 0;
   if (!hasAnything) return null;
 
   return (
     <div className="border-t border-border/40 pt-3 mt-1 space-y-2">
 
-      {/* ── Important today ── */}
-      {(todayEvents.length > 0 || significance.isFasting || significance.tithiNote || significance.yogaNote) && (
+      {/* ── Important today (drawn entirely from significance — the accurate source) ── */}
+      {significance.hasSignificance && (
         <div className="space-y-1.5">
           <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Important today</div>
 
-          {/* Festival / special event on this date */}
-          {todayEvents.map((ev, i) => (
-            <div key={i} className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
-              ev.kind === "festival"
-                ? "bg-amber-100/70 border border-amber-300/60 text-amber-900"
-                : ev.kind === "amavasya"
-                ? "bg-slate-100/80 border border-slate-300/50 text-slate-800"
-                : "bg-emerald-50/80 border border-emerald-200/60 text-emerald-900"
-            }`}>
-              <span className="text-base leading-tight">{EVENT_ICONS[ev.kind] ?? "📅"}</span>
-              <div>
-                <span className="font-semibold">{ev.label}</span>
-                {ev.isFasting && <span className="ml-2 text-[11px] font-medium bg-white/60 rounded px-1.5 py-0.5 border border-current/20">🌿 Fasting day</span>}
-                <p className="text-[12px] opacity-80 mt-0.5 leading-snug">{ev.note}</p>
-              </div>
-            </div>
-          ))}
-
-          {/* Festival from significance (computed from panchang, may differ from scan) */}
-          {significance.festival && !todayEvents.some(e => e.label === significance.festival!.name) && (
+          {/* Festival */}
+          {significance.festival && (
             <div className="flex items-start gap-2 rounded-lg px-3 py-2 text-sm bg-amber-100/70 border border-amber-300/60 text-amber-900">
               <span className="text-base leading-tight">✨</span>
               <div>
                 <span className="font-semibold">{significance.festival.name}</span>
-                {significance.isFasting && <span className="ml-2 text-[11px] font-medium bg-white/60 rounded px-1.5 py-0.5 border border-current/20">🌿 Fasting day</span>}
+                {significance.isFasting && (
+                  <span className="ml-2 text-[11px] font-medium bg-white/60 rounded px-1.5 py-0.5 border border-current/20">
+                    🌿 Fasting day
+                  </span>
+                )}
                 <p className="text-[12px] opacity-80 mt-0.5 leading-snug">{significance.festival.note}</p>
               </div>
             </div>
           )}
 
-          {/* Generic tithi note (only when no festival) */}
+          {/* Generic tithi note (only shown when no festival) */}
           {significance.tithiNote && (
             <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
               significance.tithiTone === "auspicious"
@@ -192,11 +176,15 @@ function GuidanceStrip({
                 ? "bg-orange-50/80 border border-orange-200/60 text-orange-900"
                 : "bg-muted/50 border border-border text-foreground"
             }`}>
-              <span className="text-base leading-tight">
+              <span className="text-base leading-tight mt-0.5">
                 {significance.tithiTone === "auspicious" ? "⭐" : significance.tithiTone === "caution" ? "⚠️" : "📅"}
               </span>
               <div>
-                {significance.isFasting && <span className="text-[11px] font-medium bg-white/60 rounded px-1.5 py-0.5 border border-current/20 mr-2">🌿 Fasting day</span>}
+                {significance.isFasting && (
+                  <span className="text-[11px] font-medium bg-white/60 rounded px-1.5 py-0.5 border border-current/20 mr-2">
+                    🌿 Fasting day
+                  </span>
+                )}
                 <span className="text-[13px] leading-snug">{significance.tithiNote}</span>
               </div>
             </div>
@@ -249,17 +237,14 @@ function GuidanceStrip({
           })()}
 
           {/* Expanded list */}
-          {expanded && upcomingNext.slice(1, 6).map((ev, i) => {
-            const days = daysUntil(ev.date, fromDate);
-            return (
-              <div key={i} className="flex items-center gap-2 text-[13px] pl-1 border-l-2 border-border/40 ml-1">
-                <span>{EVENT_ICONS[ev.kind] ?? "📅"}</span>
-                <span className="font-medium">{ev.label}</span>
-                <span className="text-muted-foreground text-[12px]">· {ev.dateStr}</span>
-                {ev.isFasting && <span className="text-[11px] text-muted-foreground">· fasting</span>}
-              </div>
-            );
-          })}
+          {expanded && upcomingNext.slice(1, 6).map((ev, i) => (
+            <div key={i} className="flex items-center gap-2 text-[13px] pl-1 border-l-2 border-border/40 ml-1">
+              <span>{EVENT_ICONS[ev.kind] ?? "📅"}</span>
+              <span className="font-medium">{ev.label}</span>
+              <span className="text-muted-foreground text-[12px]">· {ev.dateStr}</span>
+              {ev.isFasting && <span className="text-[11px] text-muted-foreground">· fasting</span>}
+            </div>
+          ))}
 
           <Link href="/upcoming" className="text-[11px] text-primary hover:opacity-80 inline-flex items-center gap-1 mt-0.5">
             See all 90 days →
@@ -280,7 +265,6 @@ export default function Today() {
 
   const [panchang, setPanchang]     = useState<PanchangData | null>(null);
   const [significance, setSignificance] = useState<TodaySignificance | null>(null);
-  const [todayEvents, setTodayEvents]   = useState<UpcomingEvent[]>([]);
   const [upcomingNext, setUpcomingNext] = useState<UpcomingEvent[]>([]);
 
   const [sankalpamDesha, setSankalpamDesha] = useState<SankalpamDesha | null>(null);
@@ -303,7 +287,6 @@ export default function Today() {
     setTimeWindows(null);
     setSessionWindows(null);
     setSignificance(null);
-    setTodayEvents([]);
     setUpcomingNext([]);
 
     const tz = getTimeZone(loc.lat, loc.lng);
@@ -322,18 +305,8 @@ export default function Today() {
 
     // Compute events for the next 30 days from selectedDate
     const allEvents = getUpcomingEvents(date, tz, 30);
-    const dateKey = dateStr; // YYYY-MM-DD
-
-    // Today's events: same date as selected
-    const todayEvts = allEvents.filter(ev => {
-      const evKey = ev.date.toISOString().slice(0, 10);
-      // Dates from JD are UTC — use dateStr as local date key comparison
-      return Math.abs(daysUntil(ev.date, date)) === 0;
-    });
     // Upcoming: strictly in the future (tomorrow+)
     const upcoming = allEvents.filter(ev => daysUntil(ev.date, date) > 0);
-
-    setTodayEvents(todayEvts);
     setUpcomingNext(upcoming);
 
     setPanchangLoading(false);
@@ -484,7 +457,6 @@ export default function Today() {
           {!panchangLoading && significance && (
             <GuidanceStrip
               significance={significance}
-              todayEvents={todayEvents}
               upcomingNext={upcomingNext}
               selectedDate={selectedDate}
             />
