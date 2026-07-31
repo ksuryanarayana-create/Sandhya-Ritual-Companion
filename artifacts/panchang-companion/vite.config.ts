@@ -5,27 +5,16 @@ import { defineConfig } from 'vite';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
-const rawPort = process.env.PORT;
-
-if (!rawPort) {
-  throw new Error(
-    'PORT environment variable is required but was not provided.',
-  );
-}
-
+// PORT is only needed by the dev server; during `vite build` it is unused.
+// Provide a safe fallback so production builds work without env vars set.
+const rawPort = process.env.PORT ?? '20005';
 const port = Number(rawPort);
-
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH;
-
-if (!basePath) {
-  throw new Error(
-    'BASE_PATH environment variable is required but was not provided.',
-  );
-}
+// BASE_PATH must match the artifact's previewPath so assets resolve correctly.
+const basePath = process.env.BASE_PATH ?? '/panchang-companion/';
 
 export default defineConfig({
   base: basePath,
