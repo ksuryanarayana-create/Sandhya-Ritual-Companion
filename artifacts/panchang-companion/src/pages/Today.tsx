@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link } from "wouter";
 import {
   getLocations,
   getActiveLocationIndex,
@@ -21,11 +22,14 @@ import {
 } from "@/lib/sunriseSunset";
 import { buildSankalpamDesha } from "@/lib/sankalpam";
 import { getTimeZone, getZonedWeekday } from "@/lib/timezone";
+import { getTodaySignificance } from "@/lib/guidance";
+import type { TodaySignificance } from "@/lib/guidance";
+import { getUpcomingEvents } from "@/lib/upcomingEvents";
+import type { UpcomingEvent } from "@/lib/upcomingEvents";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Link } from "wouter";
-import { MapPin, Sunrise, Sunset, ScrollText, CalendarDays } from "lucide-react";
+import { MapPin, Sunrise, Sunset, ScrollText, CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
 import type { PanchangData, AbsoluteWindow } from "@/lib/panchang";
 import type { SunTimes, TimeWindow, SessionWindows, ActiveSession } from "@/lib/sunriseSunset";
 import type { SankalpamDesha } from "@/lib/sankalpam";
@@ -43,33 +47,25 @@ function parseDateString(s: string): Date {
   return new Date(y, m - 1, d, 12, 0, 0);
 }
 
+function daysUntil(eventDate: Date, fromDate: Date): number {
+  const from = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate());
+  const to   = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+  return Math.round((to.getTime() - from.getTime()) / 86400000);
+}
+
 // ─── Card colour variants ─────────────────────────────────────────────────────
-// Alternates between parchment-warm (amber tint) and plain white cards
 
-const WARM = "bg-amber-50/70 border-amber-200/60 dark:bg-amber-900/10 dark:border-amber-700/30";
-const PLAIN = ""; // standard shadcn Card colours
+const WARM  = "bg-amber-50/70 border-amber-200/60 dark:bg-amber-900/10 dark:border-amber-700/30";
+const PLAIN = "";
 
-// ─── Section heading component ────────────────────────────────────────────────
+// ─── Section heading ──────────────────────────────────────────────────────────
 
-function SectionTitle({
-  lang,
-  sectionKey,
-  icon,
-}: {
-  lang: Lang;
-  sectionKey: string;
-  icon?: React.ReactNode;
-}) {
+function SectionTitle({ lang, sectionKey, icon }: { lang: Lang; sectionKey: string; icon?: React.ReactNode }) {
   const h = heading(lang, sectionKey);
   return (
     <div>
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="font-serif text-lg leading-tight">{h.primary}</span>
-      </div>
-      <div className="text-[11px] text-muted-foreground tracking-wide mt-0.5 pl-0.5">
-        {h.secondary}
-      </div>
+      <div className="flex items-center gap-2">{icon}<span className="font-serif text-lg leading-tight">{h.primary}</span></div>
+      <div className="text-[11px] text-muted-foreground tracking-wide mt-0.5 pl-0.5">{h.secondary}</div>
     </div>
   );
 }
@@ -79,37 +75,24 @@ function SectionTitle({
 function Row({ lbl, value }: { lbl: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-2 border-b border-border/50 last:border-b-0">
-      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">
-        {lbl}
-      </span>
+      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">{lbl}</span>
       <span className="text-[15px] font-medium text-right">{value}</span>
     </div>
   );
 }
 
-function SegmentRow({
-  lbl,
-  name,
-  segments,
-}: {
-  lbl: string;
-  name: string;
-  segments: { name: string; upto: string }[];
-}) {
+function SegmentRow({ lbl, name, segments }: { lbl: string; name: string; segments: { name: string; upto: string }[] }) {
   return (
     <div className="py-2 border-b border-border/50 last:border-b-0">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">
-          {lbl}
-        </span>
+        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">{lbl}</span>
         <span className="text-[15px] font-medium text-right">{name}</span>
       </div>
       {segments.length > 0 && (
         <div className="mt-1 space-y-0.5 text-right">
           {segments.map((seg, i) => (
             <p key={i} className="text-[12px] text-muted-foreground">
-              {seg.name}{" "}
-              <span className="text-foreground/70 font-medium">until {seg.upto}</span>
+              {seg.name} <span className="text-foreground/70 font-medium">until {seg.upto}</span>
             </p>
           ))}
         </div>
@@ -118,54 +101,171 @@ function SegmentRow({
   );
 }
 
-function TimeRow({
-  lbl,
-  window,
-  timeZone,
-}: {
-  lbl: string;
-  window: { start: Date; end: Date } | null | undefined;
-  timeZone: string;
-}) {
+function TimeRow({ lbl, window, timeZone }: { lbl: string; window: { start: Date; end: Date } | null | undefined; timeZone: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-2 border-b border-border/50 last:border-b-0">
-      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">
-        {lbl}
-      </span>
+      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">{lbl}</span>
       <span className="text-[14px] font-medium tabular-nums">
-        {window
-          ? `${formatTime(window.start, timeZone)} – ${formatTime(window.end, timeZone)}`
-          : "—"}
+        {window ? `${formatTime(window.start, timeZone)} – ${formatTime(window.end, timeZone)}` : "—"}
       </span>
     </div>
   );
 }
 
-function SessionChip({
-  lbl,
-  timeWindow,
-  isActive,
-}: {
-  lbl: string;
-  timeWindow?: string;
-  isActive: boolean;
-}) {
+function SessionChip({ lbl, timeWindow, isActive }: { lbl: string; timeWindow?: string; isActive: boolean }) {
   return (
-    <div
-      className={`flex-1 rounded-lg border-2 px-2 py-2 text-center transition-colors ${
-        isActive ? "border-secondary bg-secondary/10" : "border-border bg-background/60"
-      }`}
-    >
-      <div className={`text-[12px] font-bold ${isActive ? "text-secondary" : "text-foreground"}`}>
-        {lbl}
-      </div>
-      <div
-        className={`text-[11px] mt-0.5 leading-tight ${
-          isActive ? "text-secondary/90 font-semibold" : "text-muted-foreground"
-        }`}
-      >
-        {timeWindow ?? "—"}
-      </div>
+    <div className={`flex-1 rounded-lg border-2 px-2 py-2 text-center transition-colors ${isActive ? "border-secondary bg-secondary/10" : "border-border bg-background/60"}`}>
+      <div className={`text-[12px] font-bold ${isActive ? "text-secondary" : "text-foreground"}`}>{lbl}</div>
+      <div className={`text-[11px] mt-0.5 leading-tight ${isActive ? "text-secondary/90 font-semibold" : "text-muted-foreground"}`}>{timeWindow ?? "—"}</div>
+    </div>
+  );
+}
+
+// ─── Guidance Strip ───────────────────────────────────────────────────────────
+
+const EVENT_ICONS: Record<string, string> = {
+  festival: "✨", ekadashi: "🌿", purnima: "🌕", amavasya: "🌑",
+  pradosham: "🕯️", chaturthi: "🐘", sankranti: "☀️",
+};
+
+function GuidanceStrip({
+  significance,
+  todayEvents,
+  upcomingNext,
+  selectedDate,
+}: {
+  significance: TodaySignificance;
+  todayEvents: UpcomingEvent[];
+  upcomingNext: UpcomingEvent[];
+  selectedDate: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const fromDate = parseDateString(selectedDate);
+
+  const hasAnything = significance.hasSignificance || todayEvents.length > 0 || upcomingNext.length > 0;
+  if (!hasAnything) return null;
+
+  return (
+    <div className="border-t border-border/40 pt-3 mt-1 space-y-2">
+
+      {/* ── Important today ── */}
+      {(todayEvents.length > 0 || significance.isFasting || significance.tithiNote || significance.yogaNote) && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Important today</div>
+
+          {/* Festival / special event on this date */}
+          {todayEvents.map((ev, i) => (
+            <div key={i} className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
+              ev.kind === "festival"
+                ? "bg-amber-100/70 border border-amber-300/60 text-amber-900"
+                : ev.kind === "amavasya"
+                ? "bg-slate-100/80 border border-slate-300/50 text-slate-800"
+                : "bg-emerald-50/80 border border-emerald-200/60 text-emerald-900"
+            }`}>
+              <span className="text-base leading-tight">{EVENT_ICONS[ev.kind] ?? "📅"}</span>
+              <div>
+                <span className="font-semibold">{ev.label}</span>
+                {ev.isFasting && <span className="ml-2 text-[11px] font-medium bg-white/60 rounded px-1.5 py-0.5 border border-current/20">🌿 Fasting day</span>}
+                <p className="text-[12px] opacity-80 mt-0.5 leading-snug">{ev.note}</p>
+              </div>
+            </div>
+          ))}
+
+          {/* Festival from significance (computed from panchang, may differ from scan) */}
+          {significance.festival && !todayEvents.some(e => e.label === significance.festival!.name) && (
+            <div className="flex items-start gap-2 rounded-lg px-3 py-2 text-sm bg-amber-100/70 border border-amber-300/60 text-amber-900">
+              <span className="text-base leading-tight">✨</span>
+              <div>
+                <span className="font-semibold">{significance.festival.name}</span>
+                {significance.isFasting && <span className="ml-2 text-[11px] font-medium bg-white/60 rounded px-1.5 py-0.5 border border-current/20">🌿 Fasting day</span>}
+                <p className="text-[12px] opacity-80 mt-0.5 leading-snug">{significance.festival.note}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Generic tithi note (only when no festival) */}
+          {significance.tithiNote && (
+            <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
+              significance.tithiTone === "auspicious"
+                ? "bg-emerald-50/80 border border-emerald-200/60 text-emerald-900"
+                : significance.tithiTone === "caution"
+                ? "bg-orange-50/80 border border-orange-200/60 text-orange-900"
+                : "bg-muted/50 border border-border text-foreground"
+            }`}>
+              <span className="text-base leading-tight">
+                {significance.tithiTone === "auspicious" ? "⭐" : significance.tithiTone === "caution" ? "⚠️" : "📅"}
+              </span>
+              <div>
+                {significance.isFasting && <span className="text-[11px] font-medium bg-white/60 rounded px-1.5 py-0.5 border border-current/20 mr-2">🌿 Fasting day</span>}
+                <span className="text-[13px] leading-snug">{significance.tithiNote}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Yoga note */}
+          {significance.yogaNote && (
+            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] ${
+              significance.yogaTone === "auspicious"
+                ? "bg-emerald-50/60 border border-emerald-200/40 text-emerald-800"
+                : "bg-orange-50/60 border border-orange-200/40 text-orange-800"
+            }`}>
+              <span>{significance.yogaTone === "auspicious" ? "✅" : "⚠️"}</span>
+              <span>{significance.yogaNote}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Upcoming next ── */}
+      {upcomingNext.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Upcoming next</div>
+
+          {/* First event always visible */}
+          {(() => {
+            const ev = upcomingNext[0];
+            const days = daysUntil(ev.date, fromDate);
+            return (
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[13px]">
+                  <span>{EVENT_ICONS[ev.kind] ?? "📅"}</span>
+                  <span className="font-medium">{ev.label}</span>
+                  <span className="text-muted-foreground">
+                    {days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}
+                  </span>
+                  {ev.isFasting && <span className="text-[11px] text-muted-foreground">· fasting</span>}
+                </div>
+                {upcomingNext.length > 1 && (
+                  <button
+                    onClick={() => setExpanded(e => !e)}
+                    className="flex items-center gap-1 text-[11px] text-primary hover:opacity-80 transition-opacity shrink-0"
+                  >
+                    {expanded ? "less" : `+${upcomingNext.length - 1} more`}
+                    {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Expanded list */}
+          {expanded && upcomingNext.slice(1, 6).map((ev, i) => {
+            const days = daysUntil(ev.date, fromDate);
+            return (
+              <div key={i} className="flex items-center gap-2 text-[13px] pl-1 border-l-2 border-border/40 ml-1">
+                <span>{EVENT_ICONS[ev.kind] ?? "📅"}</span>
+                <span className="font-medium">{ev.label}</span>
+                <span className="text-muted-foreground text-[12px]">· {ev.dateStr}</span>
+                {ev.isFasting && <span className="text-[11px] text-muted-foreground">· fasting</span>}
+              </div>
+            );
+          })}
+
+          <Link href="/upcoming" className="text-[11px] text-primary hover:opacity-80 inline-flex items-center gap-1 mt-0.5">
+            See all 90 days →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
@@ -173,46 +273,72 @@ function SessionChip({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Today() {
-  const [locations, setLocations] = useState<(Location | null)[]>([null, null, null]);
-  const [activeIdx, setActiveIdx] = useState<0 | 1 | 2>(0);
+  const [locations, setLocations]   = useState<(Location | null)[]>([null, null, null]);
+  const [activeIdx, setActiveIdx]   = useState<0 | 1 | 2>(0);
   const [selectedDate, setSelectedDate] = useState(todayDateString());
-  const [lang, setLangState] = useState<Lang>(getLang());
+  const [lang, setLangState]        = useState<Lang>(getLang());
 
-  const [panchang, setPanchang] = useState<PanchangData | null>(null);
+  const [panchang, setPanchang]     = useState<PanchangData | null>(null);
+  const [significance, setSignificance] = useState<TodaySignificance | null>(null);
+  const [todayEvents, setTodayEvents]   = useState<UpcomingEvent[]>([]);
+  const [upcomingNext, setUpcomingNext] = useState<UpcomingEvent[]>([]);
+
   const [sankalpamDesha, setSankalpamDesha] = useState<SankalpamDesha | null>(null);
-  const [timeZone, setTimeZone] = useState<string>("Asia/Kolkata");
+  const [timeZone, setTimeZone]     = useState<string>("Asia/Kolkata");
 
-  const [sunTimes, setSunTimes] = useState<SunTimes | null>(null);
+  const [sunTimes, setSunTimes]     = useState<SunTimes | null>(null);
   const [timeWindows, setTimeWindows] = useState<{
-    rahuKalam: TimeWindow;
-    gulikaKalam: TimeWindow;
-    yamagandam: TimeWindow;
-    abhijitMuhurta: TimeWindow;
-    durMuhurtam: TimeWindow[];
+    rahuKalam: TimeWindow; gulikaKalam: TimeWindow; yamagandam: TimeWindow;
+    abhijitMuhurta: TimeWindow; durMuhurtam: TimeWindow[];
   } | null>(null);
   const [sessionWindows, setSessionWindows] = useState<SessionWindows | null>(null);
-  const [activeSession, setActiveSession] = useState<ActiveSession>("none");
+  const [activeSession, setActiveSession]   = useState<ActiveSession>("none");
 
   const [panchangLoading, setPanchangLoading] = useState(true);
-  const [sunLoading, setSunLoading] = useState(false);
+  const [sunLoading, setSunLoading]           = useState(false);
 
   const compute = useCallback(async (loc: Location, dateStr: string) => {
     setPanchangLoading(true);
     setSunTimes(null);
     setTimeWindows(null);
     setSessionWindows(null);
+    setSignificance(null);
+    setTodayEvents([]);
+    setUpcomingNext([]);
 
     const tz = getTimeZone(loc.lat, loc.lng);
     setTimeZone(tz);
 
     const date = parseDateString(dateStr);
+
+    // ── Panchang (sync) ──────────────────────────────────────────────────────
     const panchangData = calculatePanchang(date, tz);
     setPanchang(panchangData);
-    setSankalpamDesha(
-      buildSankalpamDesha(loc.city, loc.lat, loc.lng, loc.state, loc.countryCode)
-    );
+    setSankalpamDesha(buildSankalpamDesha(loc.city, loc.lat, loc.lng, loc.state, loc.countryCode));
+
+    // ── Guidance (sync — derived from panchang + local event scan) ───────────
+    const sig = getTodaySignificance(panchangData);
+    setSignificance(sig);
+
+    // Compute events for the next 30 days from selectedDate
+    const allEvents = getUpcomingEvents(date, tz, 30);
+    const dateKey = dateStr; // YYYY-MM-DD
+
+    // Today's events: same date as selected
+    const todayEvts = allEvents.filter(ev => {
+      const evKey = ev.date.toISOString().slice(0, 10);
+      // Dates from JD are UTC — use dateStr as local date key comparison
+      return Math.abs(daysUntil(ev.date, date)) === 0;
+    });
+    // Upcoming: strictly in the future (tomorrow+)
+    const upcoming = allEvents.filter(ev => daysUntil(ev.date, date) > 0);
+
+    setTodayEvents(todayEvts);
+    setUpcomingNext(upcoming);
+
     setPanchangLoading(false);
 
+    // ── Sun times (async) ────────────────────────────────────────────────────
     setSunLoading(true);
     try {
       const st = await fetchSunTimes(loc.lat, loc.lng, date);
@@ -226,9 +352,7 @@ export default function Today() {
         durMuhurtam: getDurMuhurtam(st, weekday),
       });
       setSessionWindows(getSessionWindows(st, tz));
-      setActiveSession(
-        dateStr === todayDateString() ? getActiveSession(new Date(), st) : "none"
-      );
+      setActiveSession(dateStr === todayDateString() ? getActiveSession(new Date(), st) : "none");
     } catch (err) {
       console.error("Failed to fetch sun times:", err);
     } finally {
@@ -238,20 +362,15 @@ export default function Today() {
 
   useEffect(() => {
     const locs = getLocations();
-    const idx = getActiveLocationIndex();
+    const idx  = getActiveLocationIndex();
     setLocations(locs);
     setActiveIdx(idx);
     setLangState(getLang());
     const loc = locs[idx];
-    if (loc) {
-      compute(loc, selectedDate);
-    } else {
-      setPanchangLoading(false);
-    }
+    if (loc) { compute(loc, selectedDate); } else { setPanchangLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-read lang whenever the tab is focused (user may have changed it in Settings)
   useEffect(() => {
     const onFocus = () => setLangState(getLang());
     window.addEventListener("focus", onFocus);
@@ -272,12 +391,12 @@ export default function Today() {
     if (loc) compute(loc, dateStr);
   };
 
-  const activeLoc = locations[activeIdx] ?? null;
-  const anyLocationSet = locations.some((l) => l !== null);
-  const isToday = selectedDate === todayDateString();
+  const activeLoc   = locations[activeIdx] ?? null;
+  const anyLocSet   = locations.some(l => l !== null);
+  const isToday     = selectedDate === todayDateString();
 
-  // ── No location ──
-  if (!anyLocationSet && !panchangLoading) {
+  // ── No location ──────────────────────────────────────────────────────────────
+  if (!anyLocSet && !panchangLoading) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center p-6 pb-24">
         <Card className="w-full max-w-md border-2 border-primary/20">
@@ -288,12 +407,8 @@ export default function Today() {
             <p className="text-muted-foreground leading-relaxed">
               Set your location so we can calculate sunrise, sunset, and all muhurta windows.
             </p>
-            <Link
-              href="/settings"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
-            >
-              <MapPin className="w-5 h-5" />
-              Set Your Location
+            <Link href="/settings" className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity">
+              <MapPin className="w-5 h-5" />Set Your Location
             </Link>
           </CardContent>
         </Card>
@@ -303,15 +418,17 @@ export default function Today() {
 
   return (
     <div className="min-h-[100dvh] pb-24">
-      {/* ── Header ── */}
+
+      {/* ── Header panel ── */}
       <div className="bg-gradient-to-b from-primary/5 to-transparent border-b border-border">
         <div className="max-w-2xl mx-auto px-4 pt-5 pb-4 space-y-3">
+
+          {/* Title row */}
           <div className="flex items-center justify-between">
             <h1 className="font-serif text-3xl font-semibold text-foreground">Today</h1>
             {activeLoc && (
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <MapPin className="w-4 h-4" />
-                <span>{activeLoc.city}</span>
+                <MapPin className="w-4 h-4" /><span>{activeLoc.city}</span>
               </div>
             )}
           </div>
@@ -320,46 +437,33 @@ export default function Today() {
           <div className="flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => handleDateChange(e.target.value)}
+              type="date" value={selectedDate}
+              onChange={e => handleDateChange(e.target.value)}
               className="flex-1 text-sm border border-border rounded-md px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
             {!isToday && (
-              <button
-                onClick={() => handleDateChange(todayDateString())}
-                className="text-xs text-primary underline underline-offset-2 hover:opacity-80 whitespace-nowrap"
-              >
+              <button onClick={() => handleDateChange(todayDateString())}
+                className="text-xs text-primary underline underline-offset-2 hover:opacity-80 whitespace-nowrap">
                 Back to today
               </button>
             )}
           </div>
 
-          {/* Location toggle pills */}
-          {anyLocationSet && (
+          {/* Location pills */}
+          {anyLocSet && (
             <div className="flex gap-2">
-              {([0, 1, 2] as const).map((idx) => {
+              {([0, 1, 2] as const).map(idx => {
                 const loc = locations[idx];
-                if (!loc) {
-                  return (
-                    <div
-                      key={idx}
-                      className="flex-1 text-center py-1.5 px-2 rounded-lg text-xs text-muted-foreground/40 border border-dashed border-border/50 bg-muted/20"
-                    >
-                      Loc {idx + 1}
-                    </div>
-                  );
-                }
+                if (!loc) return (
+                  <div key={idx} className="flex-1 text-center py-1.5 px-2 rounded-lg text-xs text-muted-foreground/40 border border-dashed border-border/50 bg-muted/20">
+                    Loc {idx + 1}
+                  </div>
+                );
                 return (
-                  <button
-                    key={idx}
-                    onClick={() => handleLocSwitch(idx)}
+                  <button key={idx} onClick={() => handleLocSwitch(idx)}
                     className={`flex-1 text-center py-1.5 px-2 rounded-lg text-xs font-medium transition-all truncate ${
-                      activeIdx === idx
-                        ? "bg-secondary text-secondary-foreground shadow-sm"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
-                    }`}
-                  >
+                      activeIdx === idx ? "bg-secondary text-secondary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}>
                     {loc.city}
                   </button>
                 );
@@ -367,16 +471,23 @@ export default function Today() {
             </div>
           )}
 
+          {/* Date string */}
           {activeLoc && (
             <p className="text-sm text-muted-foreground">
               {parseDateString(selectedDate).toLocaleDateString("en-IN", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-                timeZone,
+                weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone,
               })}
             </p>
+          )}
+
+          {/* ── Guidance strip (appears as soon as panchang loads) ── */}
+          {!panchangLoading && significance && (
+            <GuidanceStrip
+              significance={significance}
+              todayEvents={todayEvents}
+              upcomingNext={upcomingNext}
+              selectedDate={selectedDate}
+            />
           )}
         </div>
       </div>
@@ -391,7 +502,7 @@ export default function Today() {
         </div>
       )}
 
-      {/* ── Main content ── */}
+      {/* ── Main content cards ── */}
       {!panchangLoading && panchang && (
         <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
 
@@ -409,60 +520,37 @@ export default function Today() {
                     <div className="flex items-center gap-2">
                       <Sunrise className="w-4 h-4 text-accent" />
                       <div>
-                        <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
-                          {label(lang, "sunrise")}
-                        </div>
-                        <div className="font-medium tabular-nums">
-                          {formatTime(sunTimes.sunrise, timeZone)}
-                        </div>
+                        <div className="text-[11px] text-muted-foreground uppercase tracking-wide">{label(lang, "sunrise")}</div>
+                        <div className="font-medium tabular-nums">{formatTime(sunTimes.sunrise, timeZone)}</div>
                       </div>
                     </div>
                     <div className="w-px h-8 bg-border" />
                     <div className="flex items-center gap-2">
                       <Sunset className="w-4 h-4 text-primary" />
                       <div>
-                        <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
-                          {label(lang, "sunset")}
-                        </div>
-                        <div className="font-medium tabular-nums">
-                          {formatTime(sunTimes.sunset, timeZone)}
-                        </div>
+                        <div className="text-[11px] text-muted-foreground uppercase tracking-wide">{label(lang, "sunset")}</div>
+                        <div className="font-medium tabular-nums">{formatTime(sunTimes.sunset, timeZone)}</div>
                       </div>
                     </div>
                   </div>
-
                   {sessionWindows && (
                     <>
                       <Separator />
                       <div>
                         <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
                           {heading(lang, "sandhya").primary}{" "}
-                          <span className="font-normal normal-case tracking-normal opacity-70">
-                            · {heading(lang, "sandhya").secondary}
-                          </span>
+                          <span className="font-normal normal-case tracking-normal opacity-70">· {heading(lang, "sandhya").secondary}</span>
                         </div>
                         <div className="flex gap-2">
-                          <SessionChip
-                            lbl={label(lang, "pratah")}
-                            timeWindow={sessionWindows.pratah}
-                            isActive={activeSession === "pratah"}
-                          />
-                          <SessionChip
-                            lbl={label(lang, "madhyahna")}
-                            timeWindow={sessionWindows.madhyahna}
-                            isActive={activeSession === "madhyahna"}
-                          />
-                          <SessionChip
-                            lbl={label(lang, "sayam")}
-                            timeWindow={sessionWindows.sayam}
-                            isActive={activeSession === "sayam"}
-                          />
+                          <SessionChip lbl={label(lang, "pratah")}    timeWindow={sessionWindows.pratah}    isActive={activeSession === "pratah"} />
+                          <SessionChip lbl={label(lang, "madhyahna")} timeWindow={sessionWindows.madhyahna} isActive={activeSession === "madhyahna"} />
+                          <SessionChip lbl={label(lang, "sayam")}     timeWindow={sessionWindows.sayam}     isActive={activeSession === "sayam"} />
                         </div>
                         {activeSession !== "none" && (
                           <p className="text-xs text-secondary font-medium mt-2 text-center">
-                            {activeSession === "pratah" && "🌅 ప్రాతః సంధ్య is active now"}
+                            {activeSession === "pratah"    && "🌅 ప్రాతః సంధ్య is active now"}
                             {activeSession === "madhyahna" && "☀️ మాధ్యాహ్న సంధ్య is active now"}
-                            {activeSession === "sayam" && "🌇 సాయం సంధ్య is active now"}
+                            {activeSession === "sayam"     && "🌇 సాయం సంధ్య is active now"}
                           </p>
                         )}
                       </div>
@@ -484,19 +572,13 @@ export default function Today() {
           <Card className={WARM}>
             <CardHeader className="pb-2">
               <CardTitle>
-                <SectionTitle
-                  lang={lang}
-                  sectionKey="desha"
-                  icon={<ScrollText className="w-4 h-4 text-accent flex-shrink-0" />}
-                />
+                <SectionTitle lang={lang} sectionKey="desha" icon={<ScrollText className="w-4 h-4 text-accent flex-shrink-0" />} />
               </CardTitle>
             </CardHeader>
             <CardContent>
               {sankalpamDesha ? (
                 <div className="space-y-2">
-                  <p className="text-[14px] leading-relaxed text-foreground font-medium italic">
-                    {sankalpamDesha.fullText}…
-                  </p>
+                  <p className="text-[14px] leading-relaxed text-foreground font-medium italic">{sankalpamDesha.fullText}…</p>
                   <div className="space-y-0.5 pt-1">
                     {sankalpamDesha.lines.map((line, i) => (
                       <div key={i} className="flex items-start gap-2 text-[12px] text-muted-foreground">
@@ -512,134 +594,59 @@ export default function Today() {
             </CardContent>
           </Card>
 
-          {/* 3 ── Cycles of Time / కాల విభాగం (PLAIN) ── */}
+          {/* 3 ── Cycles of Time (PLAIN) ── */}
           <Card className={PLAIN}>
             <CardHeader className="pb-2">
-              <CardTitle>
-                <SectionTitle lang={lang} sectionKey="cycles" />
-              </CardTitle>
+              <CardTitle><SectionTitle lang={lang} sectionKey="cycles" /></CardTitle>
             </CardHeader>
             <CardContent className="py-0 pb-3">
-              <Row
-                lbl={label(lang, "samvatsara")}
-                value={`${panchang.samvatsara} (${panchang.samvat})`}
-              />
-              <Row
-                lbl={label(lang, "ayana")}
-                value={val(lang, "ayana", panchang.ayana)}
-              />
-              <Row
-                lbl={label(lang, "ritu")}
-                value={val(lang, "ritu", panchang.ritu)}
-              />
-              <Row
-                lbl={label(lang, "masa")}
-                value={val(lang, "masa", panchang.masa)}
-              />
-              <Row
-                lbl={label(lang, "solarSign")}
-                value={val(lang, "solarSign", panchang.solarSign)}
-              />
+              <Row lbl={label(lang, "samvatsara")} value={`${panchang.samvatsara} (${panchang.samvat})`} />
+              <Row lbl={label(lang, "ayana")}      value={val(lang, "ayana", panchang.ayana)} />
+              <Row lbl={label(lang, "ritu")}       value={val(lang, "ritu", panchang.ritu)} />
+              <Row lbl={label(lang, "masa")}       value={val(lang, "masa", panchang.masa)} />
+              <Row lbl={label(lang, "solarSign")}  value={val(lang, "solarSign", panchang.solarSign)} />
             </CardContent>
           </Card>
 
-          {/* 4 ── Panchanga / పంచాంగం (WARM) ── */}
+          {/* 4 ── Panchanga (WARM + primary border) ── */}
           <Card className={`border-2 border-primary/20 ${WARM}`}>
             <CardHeader className="pb-2">
-              <CardTitle>
-                <SectionTitle lang={lang} sectionKey="panchanga" />
-              </CardTitle>
+              <CardTitle><SectionTitle lang={lang} sectionKey="panchanga" /></CardTitle>
             </CardHeader>
             <CardContent className="py-0 pb-3">
-              <SegmentRow
-                lbl={label(lang, "tithi")}
-                name={panchang.tithi}
-                segments={panchang.tithiSegments}
-              />
+              <SegmentRow lbl={label(lang, "tithi")} name={panchang.tithi} segments={panchang.tithiSegments} />
               <div className="flex items-center justify-between gap-3 py-2 border-b border-border/50">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">
-                  {label(lang, "paksha")}
-                </span>
-                <Badge variant="outline" className="text-xs">
-                  {pakshaLabel(lang, panchang.paksha)}
-                </Badge>
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">{label(lang, "paksha")}</span>
+                <Badge variant="outline" className="text-xs">{pakshaLabel(lang, panchang.paksha)}</Badge>
               </div>
-              <Row
-                lbl={label(lang, "nakshatra")}
-                value={val(lang, "nakshatra", panchang.nakshatra)}
-              />
-              <SegmentRow
-                lbl={label(lang, "yoga")}
-                name={val(lang, "yoga", panchang.yoga)}
-                segments={panchang.yogaSegments}
-              />
-              <SegmentRow
-                lbl={label(lang, "karana")}
-                name={val(lang, "karana", panchang.karana)}
-                segments={panchang.karanaSegments.slice(0, 2)}
-              />
+              <Row lbl={label(lang, "nakshatra")} value={val(lang, "nakshatra", panchang.nakshatra)} />
+              <SegmentRow lbl={label(lang, "yoga")}   name={val(lang, "yoga", panchang.yoga)}   segments={panchang.yogaSegments} />
+              <SegmentRow lbl={label(lang, "karana")} name={val(lang, "karana", panchang.karana)} segments={panchang.karanaSegments.slice(0, 2)} />
               <div className="flex items-baseline justify-between gap-3 py-2">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">
-                  {label(lang, "vara")}
-                </span>
-                <span className="text-[15px] font-medium text-right">
-                  {varaDisplay(lang, panchang.vara, panchang.varaShort)}
-                </span>
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">{label(lang, "vara")}</span>
+                <span className="text-[15px] font-medium text-right">{varaDisplay(lang, panchang.vara, panchang.varaShort)}</span>
               </div>
             </CardContent>
           </Card>
 
-          {/* 5 ── Muhurta Timings / ముహూర్త వేళలు (PLAIN) ── */}
+          {/* 5 ── Muhurta Timings (PLAIN) ── */}
           {timeWindows ? (
             <Card className={PLAIN}>
               <CardHeader className="pb-2">
-                <CardTitle>
-                  <SectionTitle lang={lang} sectionKey="muhurta" />
-                </CardTitle>
+                <CardTitle><SectionTitle lang={lang} sectionKey="muhurta" /></CardTitle>
               </CardHeader>
               <CardContent className="py-0 pb-3">
-                <TimeRow
-                  lbl={label(lang, "abhijit")}
-                  window={timeWindows.abhijitMuhurta}
-                  timeZone={timeZone}
-                />
-                <TimeRow
-                  lbl={label(lang, "rahuKalam")}
-                  window={timeWindows.rahuKalam}
-                  timeZone={timeZone}
-                />
-                <TimeRow
-                  lbl={label(lang, "gulikaKalam")}
-                  window={timeWindows.gulikaKalam}
-                  timeZone={timeZone}
-                />
-                <TimeRow
-                  lbl={label(lang, "yamagandam")}
-                  window={timeWindows.yamagandam}
-                  timeZone={timeZone}
-                />
+                <TimeRow lbl={label(lang, "abhijit")}    window={timeWindows.abhijitMuhurta} timeZone={timeZone} />
+                <TimeRow lbl={label(lang, "rahuKalam")}  window={timeWindows.rahuKalam}      timeZone={timeZone} />
+                <TimeRow lbl={label(lang, "gulikaKalam")}window={timeWindows.gulikaKalam}    timeZone={timeZone} />
+                <TimeRow lbl={label(lang, "yamagandam")} window={timeWindows.yamagandam}     timeZone={timeZone} />
                 {timeWindows.durMuhurtam.map((win, i) => (
-                  <TimeRow
-                    key={i}
-                    lbl={label(
-                      lang,
-                      timeWindows.durMuhurtam.length > 1
-                        ? i === 0
-                          ? "durMuhurtam1"
-                          : "durMuhurtam2"
-                        : "durMuhurtam"
-                    )}
-                    window={win}
-                    timeZone={timeZone}
+                  <TimeRow key={i}
+                    lbl={label(lang, timeWindows.durMuhurtam.length > 1 ? (i === 0 ? "durMuhurtam1" : "durMuhurtam2") : "durMuhurtam")}
+                    window={win} timeZone={timeZone}
                   />
                 ))}
-                {panchang.varjyam && (
-                  <TimeRow
-                    lbl={label(lang, "varjyam")}
-                    window={panchang.varjyam}
-                    timeZone={timeZone}
-                  />
-                )}
+                {panchang.varjyam && <TimeRow lbl={label(lang, "varjyam")} window={panchang.varjyam} timeZone={timeZone} />}
               </CardContent>
             </Card>
           ) : sunLoading ? (

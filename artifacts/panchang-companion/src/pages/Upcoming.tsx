@@ -15,6 +15,7 @@ const EVENT_COLORS: Record<UpcomingEvent["kind"], string> = {
   sankranti: "bg-[hsl(var(--chart-4))] text-[hsl(var(--chart-4))]",
   pradosham: "bg-[hsl(var(--chart-5))] text-[hsl(var(--chart-5))]",
   chaturthi: "bg-secondary text-secondary",
+  festival:  "bg-primary text-primary",
 };
 
 export default function Upcoming() {

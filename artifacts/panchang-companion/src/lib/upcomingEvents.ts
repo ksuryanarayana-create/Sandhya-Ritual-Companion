@@ -1,11 +1,10 @@
 /**
- * Computes upcoming panchang events (Ekadashi, Amavasya, Purnima, Sankranti)
- * for the next N days, starting from today.
+ * Computes upcoming panchang events (Ekadashi, Amavasya, Purnima, Sankranti,
+ * Pradosham, Chaturthi) and major Telugu festivals for the next N days.
  */
 
 import {
   gregorianToJD,
-  getNextAmavasya,
   sunLongitude,
   moonLongitude,
   getTithiIndex,
@@ -13,7 +12,7 @@ import {
   TELUGU_MASA_NAMES,
   findBoundaryCrossing,
 } from "./panchang";
-import { getZonedParts, zonedTimeToUtc } from "./timezone";
+import { getZonedParts } from "./timezone";
 
 function toSidereal(tropicalLon: number, jd: number): number {
   const T = (jd - 2451545.0) / 36525.0;
@@ -27,10 +26,11 @@ function elongationSidereal(jd: number): number {
   return ((m - s) % 360 + 360) % 360;
 }
 
-/** Convert a JD to a Date object (UTC midnight approximation) */
 function jdToDate(jd: number): Date {
   return new Date((jd - 2440587.5) * 86400000);
 }
+
+// ─── Event kinds ──────────────────────────────────────────────────────────────
 
 export type EventKind =
   | "ekadashi"
@@ -38,37 +38,101 @@ export type EventKind =
   | "purnima"
   | "sankranti"
   | "pradosham"
-  | "chaturthi";
+  | "chaturthi"
+  | "festival";
 
 export interface UpcomingEvent {
   kind: EventKind;
-  /** Display label, e.g. "Shukla Ekadashi", "Karka Sankranti" */
   label: string;
-  /** Guidance note in plain English */
   note: string;
-  /** The date this event occurs */
   date: Date;
-  /** Formatted date string for display */
   dateStr: string;
+  isFasting?: boolean;
 }
+
+// ─── Telugu festival rules (solar sign index + tithi index) ───────────────────
+// signIdx approximates masa from the sidereal solar longitude at that JD.
+// Map: signIdx 0=Chaitra, 1=Vaisakha … 11=Phalguna (same as TELUGU_MASA_NAMES order).
+
+interface FestivalScanRule {
+  name: string;
+  note: string;
+  signIdx: number;   // Solar sign index (0–11) matching the masa
+  tithiIdx: number;  // Tithi index (0–29)
+  isFasting: boolean;
+}
+
+const FESTIVAL_SCAN_RULES: FestivalScanRule[] = [
+  {
+    name: "Ugadi",
+    note: "Telugu New Year — Chaitra Shukla Prathama. Auspicious for new beginnings.",
+    signIdx: 0, tithiIdx: 0, isFasting: false,
+  },
+  {
+    name: "Sri Rama Navami",
+    note: "Birthday of Sri Rama — Chaitra Shukla Navami. Fasting and bhajan observed.",
+    signIdx: 0, tithiIdx: 8, isFasting: true,
+  },
+  {
+    name: "Hanuman Jayanti",
+    note: "Birthday of Hanuman — Chaitra Purnima. Auspicious for prayer.",
+    signIdx: 0, tithiIdx: 14, isFasting: false,
+  },
+  {
+    name: "Vinayaka Chavithi",
+    note: "Ganesh Chaturthi — Bhadrapada Shukla Chaturthi. Avoid moongazing today.",
+    signIdx: 5, tithiIdx: 3, isFasting: false,
+  },
+  {
+    name: "Navratri",
+    note: "Nine nights of Devi worship begin — Ashwayuja Shukla Prathama.",
+    signIdx: 6, tithiIdx: 0, isFasting: false,
+  },
+  {
+    name: "Dasara (Vijayadasami)",
+    note: "Ashwayuja Shukla Dashami — victory of good over evil. Very auspicious for new starts.",
+    signIdx: 6, tithiIdx: 9, isFasting: false,
+  },
+  {
+    name: "Deepavali (Naraka Chaturdashi)",
+    note: "Festival of lights — Kartika Krishna Chaturdashi. Lamps lit before sunrise.",
+    signIdx: 7, tithiIdx: 28, isFasting: false,
+  },
+  {
+    name: "Karthika Purnima",
+    note: "Highly auspicious full moon — lamps lit at Shiva temples all night.",
+    signIdx: 7, tithiIdx: 14, isFasting: false,
+  },
+  {
+    name: "Vaikunta Ekadashi",
+    note: "Most sacred Ekadashi of the year for Vaishnavas — Margashira Shukla.",
+    signIdx: 8, tithiIdx: 10, isFasting: true,
+  },
+  {
+    name: "Maha Shivaratri",
+    note: "Phalguna Krishna Chaturdashi — great night of Shiva. All-night vigil and fasting.",
+    signIdx: 11, tithiIdx: 28, isFasting: true,
+  },
+];
+
+// ─── Generic tithi notes ──────────────────────────────────────────────────────
 
 const EVENT_NOTES: Record<EventKind, string> = {
   ekadashi: "Fasting day observed by many Telugu families. Auspicious for prayer and restraint.",
   amavasya: "New moon — traditionally offered to ancestors (Pitru Tarpanam). Avoid auspicious starts.",
   purnima: "Full moon — auspicious for worship, charity, and family gatherings.",
-  sankranti: "Sun enters a new zodiac sign. Marks a seasonal shift and is considered important for new beginnings.",
+  sankranti: "Sun enters a new zodiac sign. Marks a seasonal shift; good for new beginnings.",
   pradosham: "Evening of the 13th tithi — especially auspicious for Shiva worship.",
   chaturthi: "Ganesh Chaturthi tithi — auspicious for new beginnings and removing obstacles.",
+  festival: "",
 };
 
-/**
- * Compute upcoming panchang events within the next `daysAhead` days.
- * `timeZone` is the IANA timezone of the user's saved location.
- */
+// ─── Main computation ─────────────────────────────────────────────────────────
+
 export function getUpcomingEvents(
   startDate: Date,
   timeZone: string,
-  daysAhead = 45,
+  daysAhead = 90,
 ): UpcomingEvent[] {
   const events: UpcomingEvent[] = [];
   const seen = new Set<string>();
@@ -77,11 +141,12 @@ export function getUpcomingEvents(
   const startJD = gregorianToJD(year, month, day);
   const endJD = startJD + daysAhead;
 
-  // ── Walk each day, check tithi ──────────────────────────────────────────
   for (let jd = startJD; jd <= endJD; jd += 0.5) {
     const sLon = toSidereal(sunLongitude(jd), jd);
     const mLon = toSidereal(moonLongitude(jd), jd);
     const tithiIdx = getTithiIndex(sLon, mLon);
+    // Solar sign index (0–11) used as a masa proxy for festival detection
+    const signIdx = Math.floor(sLon / 30) % 12;
 
     const approxDate = jdToDate(jd);
     const dateStr = approxDate.toLocaleDateString("en-IN", {
@@ -92,36 +157,56 @@ export function getUpcomingEvents(
     });
     const dateKey = approxDate.toISOString().slice(0, 10);
 
-    // Ekadashi: tithi index 10 (Shukla) or 25 (Krishna)
+    // ── Festivals (highest priority — skip generic tithi events on same day) ──
+    for (const rule of FESTIVAL_SCAN_RULES) {
+      const key = `festival-${rule.name}-${dateKey}`;
+      if (rule.signIdx === signIdx && rule.tithiIdx === tithiIdx && !seen.has(key)) {
+        seen.add(key);
+        // Mark the date so we suppress the redundant generic event (e.g. Hanuman Jayanti already shows Purnima context)
+        seen.add(`purnima-${dateKey}`);
+        seen.add(`chaturthi-shukla-${dateKey}`);
+        seen.add(`ekadashi-shukla-${dateKey}`);
+        events.push({
+          kind: "festival",
+          label: rule.name,
+          note: rule.note,
+          date: approxDate,
+          dateStr,
+          isFasting: rule.isFasting,
+        });
+      }
+    }
+
+    // ── Ekadashi ──────────────────────────────────────────────────────────────
     if (tithiIdx === 10 && !seen.has(`ekadashi-shukla-${dateKey}`)) {
       seen.add(`ekadashi-shukla-${dateKey}`);
-      events.push({ kind: "ekadashi", label: "Shukla Ekadashi", note: EVENT_NOTES.ekadashi, date: approxDate, dateStr });
+      events.push({ kind: "ekadashi", label: "Shukla Ekadashi", note: EVENT_NOTES.ekadashi, date: approxDate, dateStr, isFasting: true });
     }
     if (tithiIdx === 25 && !seen.has(`ekadashi-krishna-${dateKey}`)) {
       seen.add(`ekadashi-krishna-${dateKey}`);
-      events.push({ kind: "ekadashi", label: "Krishna Ekadashi", note: EVENT_NOTES.ekadashi, date: approxDate, dateStr });
+      events.push({ kind: "ekadashi", label: "Krishna Ekadashi", note: EVENT_NOTES.ekadashi, date: approxDate, dateStr, isFasting: true });
     }
 
-    // Purnima: tithi index 14
+    // ── Purnima ───────────────────────────────────────────────────────────────
     if (tithiIdx === 14 && !seen.has(`purnima-${dateKey}`)) {
       seen.add(`purnima-${dateKey}`);
       events.push({ kind: "purnima", label: "Purnima", note: EVENT_NOTES.purnima, date: approxDate, dateStr });
     }
 
-    // Amavasya: tithi index 29
+    // ── Amavasya ──────────────────────────────────────────────────────────────
     if (tithiIdx === 29 && !seen.has(`amavasya-${dateKey}`)) {
       seen.add(`amavasya-${dateKey}`);
       events.push({ kind: "amavasya", label: "Amavasya", note: EVENT_NOTES.amavasya, date: approxDate, dateStr });
     }
 
-    // Pradosham: tithi index 12 (Shukla Trayodashi) or 27 (Krishna Trayodashi)
+    // ── Pradosham ────────────────────────────────────────────────────────────
     if ((tithiIdx === 12 || tithiIdx === 27) && !seen.has(`pradosham-${dateKey}`)) {
       seen.add(`pradosham-${dateKey}`);
       const paksha = tithiIdx === 12 ? "Shukla" : "Krishna";
       events.push({ kind: "pradosham", label: `${paksha} Pradosham`, note: EVENT_NOTES.pradosham, date: approxDate, dateStr });
     }
 
-    // Chaturthi: tithi index 3 (Shukla) or 18 (Krishna Sankashti)
+    // ── Chaturthi ────────────────────────────────────────────────────────────
     if (tithiIdx === 3 && !seen.has(`chaturthi-shukla-${dateKey}`)) {
       seen.add(`chaturthi-shukla-${dateKey}`);
       events.push({ kind: "chaturthi", label: "Shukla Chaturthi", note: EVENT_NOTES.chaturthi, date: approxDate, dateStr });
@@ -132,26 +217,15 @@ export function getUpcomingEvents(
     }
   }
 
-  // ── Sankranti: find solar sign crossings within the window ──────────────
+  // ── Sankranti: solar sign crossings ─────────────────────────────────────────
   let sankrantiSearch = startJD;
   while (sankrantiSearch < endJD) {
-    const crossingJD = findBoundaryCrossing(
-      sankrantiSearch,
-      (j) => toSidereal(sunLongitude(j), j),
-      30,
-      35,
-    );
+    const crossingJD = findBoundaryCrossing(sankrantiSearch, (j) => toSidereal(sunLongitude(j), j), 30, 35);
     if (crossingJD > endJD) break;
-
     const sunAfter = toSidereal(sunLongitude(crossingJD + 0.01), crossingJD + 0.01);
     const signIdx = Math.floor(sunAfter / 30) % 12;
     const crossingDate = jdToDate(crossingJD);
-    const dateStr = crossingDate.toLocaleDateString("en-IN", {
-      timeZone,
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
+    const dateStr = crossingDate.toLocaleDateString("en-IN", { timeZone, weekday: "short", month: "short", day: "numeric" });
     const masaName = TELUGU_MASA_NAMES[signIdx];
     const signName = SOLAR_SIGN_NAMES[signIdx];
     const key = `sankranti-${signIdx}-${crossingDate.toISOString().slice(0, 10)}`;
@@ -168,12 +242,12 @@ export function getUpcomingEvents(
     sankrantiSearch = crossingJD + 1;
   }
 
-  // Sort by date
   events.sort((a, b) => a.date.getTime() - b.date.getTime());
   return events;
 }
 
-/** Group upcoming events by week label ("This week", "Next week", "Later") */
+// ─── Grouping (for Upcoming page) ────────────────────────────────────────────
+
 export function groupEventsByWeek(
   events: UpcomingEvent[],
   today: Date,
