@@ -3,8 +3,8 @@ import { Link } from "wouter";
 import { MapPin, Sunrise, Sunset, Loader2 } from "lucide-react";
 import {
   fetchSunTimes, getActiveSession, getSessionWindows, formatTime,
-  getRahuKalam, getGulikaKalam, getYamagandam, getAbhijitMuhurta, getDurMuhurtam,
-  type SunTimes, type ActiveSession, type SessionWindows, type TimeWindow,
+  getRahuKalam, getGulikaKalam, getYamagandam, getAbhijitMuhurta, getDurMuhurtam, getAmritKalam,
+  type SunTimes, type ActiveSession, type SessionWindows, type TimeWindow, type AmritKalam,
 } from "@/lib/sunriseSunset";
 import { calculatePanchang, type PanchangData, type PanchangSegment } from "@/lib/panchang";
 import { buildSankalpamDesha, type SankalpamDesha } from "@/lib/sankalpam";
@@ -87,6 +87,7 @@ export default function Today() {
   const [sankalpamDesha, setSankalpamDesha] = useState<SankalpamDesha | null>(null);
   const [activeSession, setActiveSession] = useState<ActiveSession>("none");
   const [sessionWindows, setSessionWindows] = useState<SessionWindows | null>(null);
+  const [amritKalam, setAmritKalam] = useState<AmritKalam | null>(null);
   const [isLoadingSun, setIsLoadingSun] = useState(false);
   const [sunError, setSunError] = useState<string | null>(null);
 
@@ -116,11 +117,18 @@ export default function Today() {
 
     if (loc) {
       setIsLoadingSun(true);
-      fetchSunTimes(loc.lat, loc.lng, today)
-        .then(times => {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      Promise.all([
+        fetchSunTimes(loc.lat, loc.lng, today),
+        fetchSunTimes(loc.lat, loc.lng, tomorrow),
+      ])
+        .then(([times, tomorrowTimes]) => {
+          const wd = getZonedWeekday(today, tz);
           setSunTimes(times);
           setActiveSession(getActiveSession(new Date(), times));
           setSessionWindows(getSessionWindows(times, tz));
+          setAmritKalam(getAmritKalam(times, tomorrowTimes.sunrise, wd));
         })
         .catch(err => {
           console.error(err);
@@ -232,6 +240,8 @@ export default function Today() {
                 ))}
                 <MuhurtaItem label="Varjyam" window={panchang.varjyam} tone="inauspicious" timeZone={timeZone} />
                 <MuhurtaItem label="Abhijit Muhurta" window={abhijitMuhurta} tone="auspicious" timeZone={timeZone} />
+                <MuhurtaItem label="Amrit Kalam (Day)" window={amritKalam?.day ?? null} tone="auspicious" timeZone={timeZone} />
+                <MuhurtaItem label="Amrit Kalam (Night)" window={amritKalam?.night ?? null} tone="auspicious" timeZone={timeZone} />
               </div>
             ) : (
               <p className="text-[15px] text-muted-foreground italic text-center">

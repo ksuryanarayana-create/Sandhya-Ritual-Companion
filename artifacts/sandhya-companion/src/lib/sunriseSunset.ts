@@ -194,6 +194,72 @@ export function getDurMuhurtam(sunTimes: SunTimes, weekday: number): TimeWindow[
   return DUR_MUHURTAM_MUHURTA[weekday].map(idx => daylightFifteenth(sunTimes, idx));
 }
 
+// ─── Amrit Kalam (Choghadiya system) ──────────────────────────────────────────
+//
+// The 7 Choghadiyas cycle: Udveg(1), Char(2), Labh(3), Amrit(4), Kaal(5), Shubh(6), Rog(7).
+// Both daylight (sunrise→sunset) and nighttime (sunset→next sunrise) are divided into
+// 8 equal parts; each part maps to a Choghadiya based on the weekday's starting value.
+//
+// Verified against Drikpanchang Singapore Jul 16 2026 (Thursday):
+//   Night Amrit Kalam = 08:53–10:22 PM  →  night part 2  ✓
+//
+// Day starting Choghadiya index by weekday (0=Sun…6=Sat):
+//   Sun=Udveg(1), Mon=Amrit(4), Tue=Rog(7), Wed=Labh(3), Thu=Shubh(6), Fri=Char(2), Sat=Kaal(5)
+// Night starting Choghadiya index:
+//   Sun=Shubh(6), Mon=Char(2), Tue=Kaal(5), Wed=Udveg(1), Thu=Labh(3), Fri=Rog(7), Sat=Amrit(4)
+
+const DAY_START_CHOGHADIYA  = [1, 4, 7, 3, 6, 2, 5]; // by weekday
+const NIGHT_START_CHOGHADIYA = [6, 2, 5, 1, 3, 7, 4]; // by weekday
+
+/** Returns the 1-based part index (1–8) in which Amrit Choghadiya (index 4) falls. */
+function amritPartIndex(startChoghadiya: number): number {
+  // Parts cycle through the 7 Choghadiyas starting from startChoghadiya.
+  // Find which of the 8 parts maps to Amrit (4).
+  for (let part = 1; part <= 8; part++) {
+    const choghadiya = ((startChoghadiya - 1 + (part - 1)) % 7) + 1;
+    if (choghadiya === 4) return part;
+  }
+  // Amrit always appears within the first 7 parts; part 8 repeats startChoghadiya.
+  // Fallback (should not be reached):
+  return 1;
+}
+
+export interface AmritKalam {
+  day: TimeWindow;
+  night: TimeWindow;
+}
+
+/**
+ * Compute Amrit Kalam windows for the day.
+ * @param sunTimes  Today's sunrise/sunset/solarNoon.
+ * @param nextSunrise  Tomorrow's sunrise (to bound the night window).
+ * @param weekday  0=Sunday … 6=Saturday of the *current* day.
+ */
+export function getAmritKalam(
+  sunTimes: SunTimes,
+  nextSunrise: Date,
+  weekday: number,
+): AmritKalam {
+  const dayMs   = sunTimes.sunset.getTime()   - sunTimes.sunrise.getTime();
+  const nightMs = nextSunrise.getTime()        - sunTimes.sunset.getTime();
+  const dayPartMs   = dayMs   / 8;
+  const nightPartMs = nightMs / 8;
+
+  const dayPart   = amritPartIndex(DAY_START_CHOGHADIYA[weekday]);
+  const nightPart = amritPartIndex(NIGHT_START_CHOGHADIYA[weekday]);
+
+  return {
+    day: {
+      start: new Date(sunTimes.sunrise.getTime() + (dayPart   - 1) * dayPartMs),
+      end:   new Date(sunTimes.sunrise.getTime() +  dayPart        * dayPartMs),
+    },
+    night: {
+      start: new Date(sunTimes.sunset.getTime()  + (nightPart - 1) * nightPartMs),
+      end:   new Date(sunTimes.sunset.getTime()  +  nightPart       * nightPartMs),
+    },
+  };
+}
+
 /** Determine which Sandhya session is currently active based on sun times. */
 export type ActiveSession = "pratah" | "madhyahna" | "sayam" | "none";
 
