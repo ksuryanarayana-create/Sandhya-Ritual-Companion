@@ -8,7 +8,7 @@ import Upcoming from '@/pages/Upcoming';
 import Lookup from '@/pages/Lookup';
 import Learn from '@/pages/Learn';
 import Settings from '@/pages/Settings';
-import { Calendar, CalendarSearch, BookOpen, Settings as SettingsIcon, Sun } from 'lucide-react';
+import { Calendar, BookOpen, Settings as SettingsIcon, Sun } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
@@ -18,7 +18,6 @@ function BottomNav() {
   const navItems = [
     { path: '/', label: 'Today', icon: Sun },
     { path: '/upcoming', label: 'Upcoming', icon: Calendar },
-    { path: '/lookup', label: 'Lookup', icon: CalendarSearch },
     { path: '/learn', label: 'Learn', icon: BookOpen },
     { path: '/settings', label: 'Settings', icon: SettingsIcon },
   ];

@@ -133,3 +133,39 @@ export function getAbhijitMuhurta(sunTimes: SunTimes): TimeWindow {
 export function getDurMuhurtam(sunTimes: SunTimes, weekday: number): TimeWindow[] {
   return DUR_MUHURTAM_MUHURTA[weekday].map(idx => daylightFifteenth(sunTimes, idx));
 }
+
+// ─── Sandhya session windows ──────────────────────────────────────────────────
+
+/** HH:MM a.m./p.m. range for each Sandhya session, computed from sun times. */
+export interface SessionWindows {
+  pratah: string;    // 30 min before sunrise → 2 h after sunrise
+  madhyahna: string; // 30 min before solar noon → 30 min after
+  sayam: string;     // 2 h before sunset → 30 min after sunset
+}
+
+export function getSessionWindows(sunTimes: SunTimes, timeZone?: string): SessionWindows {
+  const MIN  = 60 * 1000;
+  const HOUR = 60 * MIN;
+  const fmt  = (d: Date) => formatTime(d, timeZone);
+
+  return {
+    pratah:   `${fmt(new Date(sunTimes.sunrise.getTime()  - 30 * MIN))} – ${fmt(new Date(sunTimes.sunrise.getTime()  + 2  * HOUR))}`,
+    madhyahna:`${fmt(new Date(sunTimes.solarNoon.getTime()- 30 * MIN))} – ${fmt(new Date(sunTimes.solarNoon.getTime()+ 30 * MIN))}`,
+    sayam:    `${fmt(new Date(sunTimes.sunset.getTime()   - 2  * HOUR))} – ${fmt(new Date(sunTimes.sunset.getTime()   + 30 * MIN))}`,
+  };
+}
+
+export type ActiveSession = "pratah" | "madhyahna" | "sayam" | "none";
+
+export function getActiveSession(now: Date, sunTimes: SunTimes): ActiveSession {
+  const ms   = now.getTime();
+  const rise = sunTimes.sunrise.getTime();
+  const noon = sunTimes.solarNoon.getTime();
+  const set  = sunTimes.sunset.getTime();
+  const HOUR = 60 * 60 * 1000;
+
+  if (ms >= rise - 30 * 60 * 1000 && ms <= rise + 2 * HOUR) return "pratah";
+  if (ms >= noon - 30 * 60 * 1000 && ms <= noon + 30 * 60 * 1000) return "madhyahna";
+  if (ms >= set  - 2  * HOUR      && ms <= set  + 30 * 60 * 1000) return "sayam";
+  return "none";
+}

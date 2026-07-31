@@ -12,16 +12,20 @@ import {
   getYamagandam,
   getAbhijitMuhurta,
   getDurMuhurtam,
+  getSessionWindows,
+  getActiveSession,
   formatTime,
 } from "@/lib/sunriseSunset";
+import { buildSankalpamDesha } from "@/lib/sankalpam";
 import { getTimeZone, getZonedWeekday } from "@/lib/timezone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Link } from "wouter";
-import { MapPin, Sunrise, Sunset, Clock, CalendarDays } from "lucide-react";
+import { MapPin, Sunrise, Sunset, Clock, CalendarDays, ScrollText } from "lucide-react";
 import type { PanchangData } from "@/lib/panchang";
-import type { SunTimes, TimeWindow } from "@/lib/sunriseSunset";
+import type { SunTimes, TimeWindow, SessionWindows, ActiveSession } from "@/lib/sunriseSunset";
+import type { SankalpamDesha } from "@/lib/sankalpam";
 import type { AbsoluteWindow } from "@/lib/panchang";
 import type { Location } from "@/lib/storage";
 
@@ -39,6 +43,42 @@ function parseDateString(s: string): Date {
   return new Date(y, m - 1, d, 12, 0, 0);
 }
 
+/** Compact chip for one sandhya window */
+function SessionChip({
+  label,
+  timeWindow,
+  isActive,
+}: {
+  label: string;
+  timeWindow?: string;
+  isActive: boolean;
+}) {
+  return (
+    <div
+      className={`flex-1 rounded-lg border-2 px-2 py-2.5 text-center transition-colors ${
+        isActive
+          ? "border-secondary bg-secondary/10"
+          : "border-border bg-background/60"
+      }`}
+    >
+      <div
+        className={`text-[13px] font-bold ${
+          isActive ? "text-secondary" : "text-foreground"
+        }`}
+      >
+        {label}
+      </div>
+      <div
+        className={`text-[11px] mt-0.5 leading-tight ${
+          isActive ? "text-secondary/90 font-semibold" : "text-muted-foreground"
+        }`}
+      >
+        {timeWindow ?? "—"}
+      </div>
+    </div>
+  );
+}
+
 export default function Today() {
   const [locations, setLocations] = useState<(Location | null)[]>([null, null, null]);
   const [activeIdx, setActiveIdx] = useState<0 | 1 | 2>(0);
@@ -53,6 +93,9 @@ export default function Today() {
     abhijitMuhurta: TimeWindow;
     durMuhurtam: TimeWindow[];
   } | null>(null);
+  const [sessionWindows, setSessionWindows] = useState<SessionWindows | null>(null);
+  const [activeSession, setActiveSession] = useState<ActiveSession>("none");
+  const [sankalpamDesha, setSankalpamDesha] = useState<SankalpamDesha | null>(null);
   const [timeZone, setTimeZone] = useState<string>("Asia/Kolkata");
   const [loading, setLoading] = useState(true);
 
@@ -61,6 +104,7 @@ export default function Today() {
     setLoading(true);
     setSunTimes(null);
     setTimeWindows(null);
+    setSessionWindows(null);
 
     const tz = getTimeZone(loc.lat, loc.lng);
     setTimeZone(tz);
@@ -68,6 +112,11 @@ export default function Today() {
     const date = parseDateString(dateStr);
     const panchangData = calculatePanchang(date, tz);
     setPanchang(panchangData);
+
+    // Desha — only changes when location changes
+    setSankalpamDesha(
+      buildSankalpamDesha(loc.city, loc.lat, loc.lng, loc.state, loc.countryCode)
+    );
 
     try {
       const st = await fetchSunTimes(loc.lat, loc.lng, date);
@@ -80,6 +129,13 @@ export default function Today() {
         abhijitMuhurta: getAbhijitMuhurta(st),
         durMuhurtam: getDurMuhurtam(st, weekday),
       });
+      setSessionWindows(getSessionWindows(st, tz));
+      // Active session only makes sense for today
+      if (dateStr === todayDateString()) {
+        setActiveSession(getActiveSession(new Date(), st));
+      } else {
+        setActiveSession("none");
+      }
     } catch (err) {
       console.error("Failed to fetch sun times:", err);
     } finally {
@@ -103,7 +159,6 @@ export default function Today() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When active location or date changes (after mount)
   const handleLocSwitch = (idx: 0 | 1 | 2) => {
     const loc = locations[idx];
     if (!loc) return;
@@ -120,6 +175,10 @@ export default function Today() {
 
   const activeLoc = locations[activeIdx] ?? null;
   const anyLocationSet = locations.some((l) => l !== null);
+  const isToday = selectedDate === todayDateString();
+
+  const formatTimeWindow = (win: TimeWindow | AbsoluteWindow) =>
+    `${formatTime(win.start, timeZone)} – ${formatTime(win.end, timeZone)}`;
 
   // ── No location set yet ──
   if (!anyLocationSet && !loading) {
@@ -147,16 +206,11 @@ export default function Today() {
     );
   }
 
-  const formatTimeWindow = (win: TimeWindow | AbsoluteWindow) =>
-    `${formatTime(win.start, timeZone)} – ${formatTime(win.end, timeZone)}`;
-
-  const isToday = selectedDate === todayDateString();
-
   return (
     <div className="min-h-[100dvh] pb-24">
       {/* ── Header ── */}
       <div className="bg-gradient-to-b from-primary/5 to-transparent border-b border-border">
-        <div className="max-w-2xl mx-auto px-4 pt-6 pb-4 space-y-4">
+        <div className="max-w-2xl mx-auto px-4 pt-5 pb-4 space-y-3">
           <div className="flex items-center justify-between">
             <h1 className="font-serif text-3xl font-semibold text-foreground">Today</h1>
             {activeLoc && (
@@ -193,7 +247,6 @@ export default function Today() {
                 const loc = locations[idx];
                 const isActive = activeIdx === idx;
                 if (!loc) {
-                  // Empty slot — greyed out, not clickable
                   return (
                     <div
                       key={idx}
@@ -248,7 +301,110 @@ export default function Today() {
       {/* ── Content ── */}
       {!loading && panchang && (
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-          {/* Core Five Elements */}
+
+          {/* ── Sunrise / Sunset + Sandhya session chips ── */}
+          {sunTimes && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="font-serif text-xl flex items-center gap-2">
+                  <Clock className="w-5 h-5" />
+                  Sun Times
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3">
+                    <Sunrise className="w-5 h-5 text-accent" />
+                    <div>
+                      <div className="text-sm text-muted-foreground">Sunrise</div>
+                      <div className="font-medium text-lg">
+                        {formatTime(sunTimes.sunrise, timeZone)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Sunset className="w-5 h-5 text-primary" />
+                    <div>
+                      <div className="text-sm text-muted-foreground">Sunset</div>
+                      <div className="font-medium text-lg">
+                        {formatTime(sunTimes.sunset, timeZone)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pratah / Madhyahna / Sayam chips */}
+                {sessionWindows && (
+                  <>
+                    <Separator />
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-2">Sandhya Windows</div>
+                      <div className="flex gap-2">
+                        <SessionChip
+                          label="Pratah"
+                          timeWindow={sessionWindows.pratah}
+                          isActive={activeSession === "pratah"}
+                        />
+                        <SessionChip
+                          label="Madhyahna"
+                          timeWindow={sessionWindows.madhyahna}
+                          isActive={activeSession === "madhyahna"}
+                        />
+                        <SessionChip
+                          label="Sayam"
+                          timeWindow={sessionWindows.sayam}
+                          isActive={activeSession === "sayam"}
+                        />
+                      </div>
+                      {activeSession !== "none" && (
+                        <p className="text-xs text-secondary font-medium mt-2 text-center">
+                          {activeSession === "pratah" && "🌅 Pratah Sandhya is active now"}
+                          {activeSession === "madhyahna" && "☀️ Madhyahna Sandhya is active now"}
+                          {activeSession === "sayam" && "🌇 Sayam Sandhya is active now"}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── Desha / Sankalpa ── */}
+          <Card className="border-2 border-accent/30 bg-accent/5">
+            <CardHeader>
+              <CardTitle className="font-serif text-xl flex items-center gap-2">
+                <ScrollText className="w-5 h-5 text-accent" />
+                Deśa · For Sankalpam
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {sankalpamDesha ? (
+                <div className="space-y-3">
+                  <p className="text-base leading-relaxed text-foreground font-medium italic">
+                    {sankalpamDesha.fullText}...
+                  </p>
+                  <div className="space-y-1">
+                    {sankalpamDesha.lines.map((line, i) => (
+                      <div
+                        key={i}
+                        className="flex items-start gap-2 text-sm text-muted-foreground"
+                      >
+                        <span className="text-accent font-bold mt-0.5 flex-shrink-0">{i + 1}.</span>
+                        <span>{line}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  Set your location to see the Sankalpam deśa text.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Core Five Elements ── */}
           <Card className="border-2 border-primary/20 shadow-md">
             <CardHeader>
               <CardTitle className="font-serif text-xl">The Five Elements</CardTitle>
@@ -337,7 +493,7 @@ export default function Today() {
             </CardContent>
           </Card>
 
-          {/* Temporal Context */}
+          {/* ── Temporal Context ── */}
           <Card>
             <CardHeader>
               <CardTitle className="font-serif text-xl">Cycles of Time</CardTitle>
@@ -368,39 +524,7 @@ export default function Today() {
             </CardContent>
           </Card>
 
-          {/* Sun Times */}
-          {sunTimes && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-serif text-xl flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Sun Times
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-3">
-                  <Sunrise className="w-5 h-5 text-accent" />
-                  <div>
-                    <div className="text-sm text-muted-foreground">Sunrise</div>
-                    <div className="font-medium text-lg">
-                      {formatTime(sunTimes.sunrise, timeZone)}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Sunset className="w-5 h-5 text-primary" />
-                  <div>
-                    <div className="text-sm text-muted-foreground">Sunset</div>
-                    <div className="font-medium text-lg">
-                      {formatTime(sunTimes.sunset, timeZone)}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Auspicious Times */}
+          {/* ── Auspicious Time ── */}
           {timeWindows && (
             <Card className="border-2 border-secondary/30 bg-secondary/5">
               <CardHeader>
@@ -420,7 +544,7 @@ export default function Today() {
             </Card>
           )}
 
-          {/* Inauspicious Times */}
+          {/* ── Inauspicious Times ── */}
           {timeWindows && (
             <Card>
               <CardHeader>
@@ -466,15 +590,6 @@ export default function Today() {
                     </div>
                   </>
                 )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Sun times loading placeholder */}
-          {!sunTimes && !loading && (
-            <Card className="opacity-50">
-              <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                Sun times unavailable for this date
               </CardContent>
             </Card>
           )}
