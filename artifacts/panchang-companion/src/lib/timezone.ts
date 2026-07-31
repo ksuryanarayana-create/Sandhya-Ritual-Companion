@@ -61,11 +61,17 @@ export function zonedTimeToUtc(
   second: number,
   timeZone: string,
 ): Date {
-  const localISOString = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}`;
-  const options: Intl.DateTimeFormatOptions = { timeZone, timeZoneName: "short" };
-  const formatter = new Intl.DateTimeFormat("en-US", options);
-  const refDate = new Date(`${localISOString}Z`);
-  const tzParts = formatter.formatToParts(refDate);
-  const tzOffset = tzParts.find(p => p.type === "timeZoneName")?.value || "+00:00";
-  return new Date(`${localISOString}${tzOffset}`);
+  // Strategy: guess UTC = desired local time (ignoring offset), ask Intl what local
+  // time that UTC maps to, compute the offset, then subtract it.
+  // Avoids parsing locale-specific timezone abbreviations ("IST", "EDT") which are
+  // not valid ISO 8601 offset strings and cause new Date() to return NaN.
+  const guessUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+  const guessLocal = getZonedParts(new Date(guessUtcMs), timeZone);
+  const guessLocalMs = Date.UTC(
+    guessLocal.year, guessLocal.month - 1, guessLocal.day,
+    guessLocal.hour, guessLocal.minute, guessLocal.second,
+  );
+  // offsetMs = local - UTC (positive = east of GMT, e.g. IST = +5.5h)
+  const offsetMs = guessLocalMs - guessUtcMs;
+  return new Date(guessUtcMs - offsetMs);
 }

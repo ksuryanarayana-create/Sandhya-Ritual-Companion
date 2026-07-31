@@ -22,28 +22,112 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Link } from "wouter";
-import { MapPin, Sunrise, Sunset, Clock, CalendarDays, ScrollText } from "lucide-react";
-import type { PanchangData } from "@/lib/panchang";
+import { MapPin, Sunrise, Sunset, ScrollText, CalendarDays } from "lucide-react";
+import type { PanchangData, AbsoluteWindow } from "@/lib/panchang";
 import type { SunTimes, TimeWindow, SessionWindows, ActiveSession } from "@/lib/sunriseSunset";
 import type { SankalpamDesha } from "@/lib/sankalpam";
-import type { AbsoluteWindow } from "@/lib/panchang";
 import type { Location } from "@/lib/storage";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function todayDateString() {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-/** Parse "YYYY-MM-DD" into a Date at noon local time so timezone math is unambiguous. */
 function parseDateString(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);
   return new Date(y, m - 1, d, 12, 0, 0);
 }
 
-/** Compact chip for one sandhya window */
+// ─── Row primitives ───────────────────────────────────────────────────────────
+
+/** Single compact row: label left (small caps), value right. */
+function Row({
+  label,
+  value,
+  valueClass = "",
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-2 border-b border-border/50 last:border-b-0">
+      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">
+        {label}
+      </span>
+      <span className={`text-[15px] font-medium text-right ${valueClass}`}>{value}</span>
+    </div>
+  );
+}
+
+/** Row with sub-segments shown below the main value. */
+function SegmentRow({
+  label,
+  name,
+  segments,
+}: {
+  label: string;
+  name: string;
+  segments: { name: string; upto: string }[];
+}) {
+  return (
+    <div className="py-2 border-b border-border/50 last:border-b-0">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">
+          {label}
+        </span>
+        <span className="text-[15px] font-medium text-right">{name}</span>
+      </div>
+      {segments.length > 0 && (
+        <div className="mt-1 space-y-0.5 text-right">
+          {segments.map((seg, i) => (
+            <p key={i} className="text-[12px] text-muted-foreground">
+              {seg.name}{" "}
+              <span className="text-foreground/70 font-medium">until {seg.upto}</span>
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Compact row for a time window: label left, time range right. */
+function TimeRow({
+  label,
+  window,
+  tone = "neutral",
+  timeZone,
+}: {
+  label: string;
+  window: { start: Date; end: Date } | null | undefined;
+  tone?: "auspicious" | "inauspicious" | "neutral";
+  timeZone: string;
+}) {
+  const colorClass =
+    tone === "auspicious"
+      ? "text-emerald-600"
+      : tone === "inauspicious"
+      ? "text-foreground"
+      : "text-foreground";
+
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-2 border-b border-border/50 last:border-b-0">
+      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">
+        {label}
+      </span>
+      <span className={`text-[14px] font-medium tabular-nums ${colorClass}`}>
+        {window
+          ? `${formatTime(window.start, timeZone)} – ${formatTime(window.end, timeZone)}`
+          : "—"}
+      </span>
+    </div>
+  );
+}
+
+/** Compact session chip: name + time range, highlights when active. */
 function SessionChip({
   label,
   timeWindow,
@@ -55,29 +139,21 @@ function SessionChip({
 }) {
   return (
     <div
-      className={`flex-1 rounded-lg border-2 px-2 py-2.5 text-center transition-colors ${
-        isActive
-          ? "border-secondary bg-secondary/10"
-          : "border-border bg-background/60"
+      className={`flex-1 rounded-lg border-2 px-2 py-2 text-center transition-colors ${
+        isActive ? "border-secondary bg-secondary/10" : "border-border bg-background/60"
       }`}
     >
-      <div
-        className={`text-[13px] font-bold ${
-          isActive ? "text-secondary" : "text-foreground"
-        }`}
-      >
+      <div className={`text-[12px] font-bold ${isActive ? "text-secondary" : "text-foreground"}`}>
         {label}
       </div>
-      <div
-        className={`text-[11px] mt-0.5 leading-tight ${
-          isActive ? "text-secondary/90 font-semibold" : "text-muted-foreground"
-        }`}
-      >
+      <div className={`text-[11px] mt-0.5 leading-tight ${isActive ? "text-secondary/90 font-semibold" : "text-muted-foreground"}`}>
         {timeWindow ?? "—"}
       </div>
     </div>
   );
 }
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Today() {
   const [locations, setLocations] = useState<(Location | null)[]>([null, null, null]);
@@ -85,6 +161,9 @@ export default function Today() {
   const [selectedDate, setSelectedDate] = useState(todayDateString());
 
   const [panchang, setPanchang] = useState<PanchangData | null>(null);
+  const [sankalpamDesha, setSankalpamDesha] = useState<SankalpamDesha | null>(null);
+  const [timeZone, setTimeZone] = useState<string>("Asia/Kolkata");
+
   const [sunTimes, setSunTimes] = useState<SunTimes | null>(null);
   const [timeWindows, setTimeWindows] = useState<{
     rahuKalam: TimeWindow;
@@ -95,13 +174,13 @@ export default function Today() {
   } | null>(null);
   const [sessionWindows, setSessionWindows] = useState<SessionWindows | null>(null);
   const [activeSession, setActiveSession] = useState<ActiveSession>("none");
-  const [sankalpamDesha, setSankalpamDesha] = useState<SankalpamDesha | null>(null);
-  const [timeZone, setTimeZone] = useState<string>("Asia/Kolkata");
-  const [loading, setLoading] = useState(true);
 
-  // Compute panchang for a given location + date
+  // Two separate loading flags so panchang shows immediately while sun API loads
+  const [panchangLoading, setPanchangLoading] = useState(true);
+  const [sunLoading, setSunLoading] = useState(false);
+
   const compute = useCallback(async (loc: Location, dateStr: string) => {
-    setLoading(true);
+    setPanchangLoading(true);
     setSunTimes(null);
     setTimeWindows(null);
     setSessionWindows(null);
@@ -110,14 +189,17 @@ export default function Today() {
     setTimeZone(tz);
 
     const date = parseDateString(dateStr);
+
+    // Panchang is synchronous — show it immediately
     const panchangData = calculatePanchang(date, tz);
     setPanchang(panchangData);
-
-    // Desha — only changes when location changes
     setSankalpamDesha(
       buildSankalpamDesha(loc.city, loc.lat, loc.lng, loc.state, loc.countryCode)
     );
+    setPanchangLoading(false);
 
+    // Sun times require an API call — load separately
+    setSunLoading(true);
     try {
       const st = await fetchSunTimes(loc.lat, loc.lng, date);
       setSunTimes(st);
@@ -130,31 +212,24 @@ export default function Today() {
         durMuhurtam: getDurMuhurtam(st, weekday),
       });
       setSessionWindows(getSessionWindows(st, tz));
-      // Active session only makes sense for today
-      if (dateStr === todayDateString()) {
-        setActiveSession(getActiveSession(new Date(), st));
-      } else {
-        setActiveSession("none");
-      }
+      setActiveSession(dateStr === todayDateString() ? getActiveSession(new Date(), st) : "none");
     } catch (err) {
       console.error("Failed to fetch sun times:", err);
     } finally {
-      setLoading(false);
+      setSunLoading(false);
     }
   }, []);
 
-  // On mount: read locations + active index
   useEffect(() => {
     const locs = getLocations();
     const idx = getActiveLocationIndex();
     setLocations(locs);
     setActiveIdx(idx);
-
     const loc = locs[idx];
     if (loc) {
       compute(loc, selectedDate);
     } else {
-      setLoading(false);
+      setPanchangLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -177,11 +252,11 @@ export default function Today() {
   const anyLocationSet = locations.some((l) => l !== null);
   const isToday = selectedDate === todayDateString();
 
-  const formatTimeWindow = (win: TimeWindow | AbsoluteWindow) =>
-    `${formatTime(win.start, timeZone)} – ${formatTime(win.end, timeZone)}`;
+  const fmt = (w: TimeWindow | AbsoluteWindow | null | undefined) =>
+    w ? `${formatTime(w.start, timeZone)} – ${formatTime(w.end, timeZone)}` : "—";
 
-  // ── No location set yet ──
-  if (!anyLocationSet && !loading) {
+  // ── No location ──
+  if (!anyLocationSet && !panchangLoading) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center p-6 pb-24">
         <Card className="w-full max-w-md border-2 border-primary/20">
@@ -190,8 +265,7 @@ export default function Today() {
           </CardHeader>
           <CardContent className="space-y-4 text-center">
             <p className="text-muted-foreground leading-relaxed">
-              To show you today's panchang, we need to know your location. Sunrise and sunset times
-              vary by city, and many time windows depend on them.
+              Set your location so we can calculate sunrise, sunset, and all muhurta windows.
             </p>
             <Link
               href="/settings"
@@ -245,14 +319,13 @@ export default function Today() {
             <div className="flex gap-2">
               {([0, 1, 2] as const).map((idx) => {
                 const loc = locations[idx];
-                const isActive = activeIdx === idx;
                 if (!loc) {
                   return (
                     <div
                       key={idx}
                       className="flex-1 text-center py-1.5 px-2 rounded-lg text-xs text-muted-foreground/40 border border-dashed border-border/50 bg-muted/20"
                     >
-                      Location {idx + 1}
+                      Loc {idx + 1}
                     </div>
                   );
                 }
@@ -261,7 +334,7 @@ export default function Today() {
                     key={idx}
                     onClick={() => handleLocSwitch(idx)}
                     className={`flex-1 text-center py-1.5 px-2 rounded-lg text-xs font-medium transition-all truncate ${
-                      isActive
+                      activeIdx === idx
                         ? "bg-secondary text-secondary-foreground shadow-sm"
                         : "bg-muted text-muted-foreground hover:bg-muted/80"
                     }`}
@@ -273,9 +346,8 @@ export default function Today() {
             </div>
           )}
 
-          {/* Date subtitle */}
           {activeLoc && (
-            <p className="text-base text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {parseDateString(selectedDate).toLocaleDateString("en-IN", {
                 weekday: "long",
                 month: "long",
@@ -288,311 +360,194 @@ export default function Today() {
         </div>
       </div>
 
-      {/* ── Loading ── */}
-      {loading && (
+      {/* ── Panchang loading spinner ── */}
+      {panchangLoading && (
         <div className="flex items-center justify-center py-24">
           <div className="text-center space-y-3">
-            <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
-            <p className="text-muted-foreground">Calculating panchang...</p>
+            <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
+            <p className="text-sm text-muted-foreground">Calculating panchang…</p>
           </div>
         </div>
       )}
 
-      {/* ── Content ── */}
-      {!loading && panchang && (
-        <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      {/* ── Main content (shows as soon as panchang is ready) ── */}
+      {!panchangLoading && panchang && (
+        <div className="max-w-2xl mx-auto px-4 py-5 space-y-4">
 
-          {/* ── Sunrise / Sunset + Sandhya session chips ── */}
-          {sunTimes && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="font-serif text-xl flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Sun Times
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-3">
-                    <Sunrise className="w-5 h-5 text-accent" />
-                    <div>
-                      <div className="text-sm text-muted-foreground">Sunrise</div>
-                      <div className="font-medium text-lg">
-                        {formatTime(sunTimes.sunrise, timeZone)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Sunset className="w-5 h-5 text-primary" />
-                    <div>
-                      <div className="text-sm text-muted-foreground">Sunset</div>
-                      <div className="font-medium text-lg">
-                        {formatTime(sunTimes.sunset, timeZone)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Pratah / Madhyahna / Sayam chips */}
-                {sessionWindows && (
-                  <>
-                    <Separator />
-                    <div>
-                      <div className="text-sm text-muted-foreground mb-2">Sandhya Windows</div>
-                      <div className="flex gap-2">
-                        <SessionChip
-                          label="Pratah"
-                          timeWindow={sessionWindows.pratah}
-                          isActive={activeSession === "pratah"}
-                        />
-                        <SessionChip
-                          label="Madhyahna"
-                          timeWindow={sessionWindows.madhyahna}
-                          isActive={activeSession === "madhyahna"}
-                        />
-                        <SessionChip
-                          label="Sayam"
-                          timeWindow={sessionWindows.sayam}
-                          isActive={activeSession === "sayam"}
-                        />
-                      </div>
-                      {activeSession !== "none" && (
-                        <p className="text-xs text-secondary font-medium mt-2 text-center">
-                          {activeSession === "pratah" && "🌅 Pratah Sandhya is active now"}
-                          {activeSession === "madhyahna" && "☀️ Madhyahna Sandhya is active now"}
-                          {activeSession === "sayam" && "🌇 Sayam Sandhya is active now"}
-                        </p>
-                      )}
-                    </div>
-                  </>
+          {/* 1 ── Sun Times + Sandhya Windows ── */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="font-serif text-lg flex items-center justify-between">
+                <span>Sun Times</span>
+                {sunLoading && (
+                  <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                 )}
-              </CardContent>
-            </Card>
-          )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {sunTimes ? (
+                <>
+                  <div className="flex items-center justify-around">
+                    <div className="flex items-center gap-2">
+                      <Sunrise className="w-4 h-4 text-accent" />
+                      <div>
+                        <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Sunrise</div>
+                        <div className="font-medium tabular-nums">{formatTime(sunTimes.sunrise, timeZone)}</div>
+                      </div>
+                    </div>
+                    <div className="w-px h-8 bg-border" />
+                    <div className="flex items-center gap-2">
+                      <Sunset className="w-4 h-4 text-primary" />
+                      <div>
+                        <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Sunset</div>
+                        <div className="font-medium tabular-nums">{formatTime(sunTimes.sunset, timeZone)}</div>
+                      </div>
+                    </div>
+                  </div>
 
-          {/* ── Desha / Sankalpa ── */}
-          <Card className="border-2 border-accent/30 bg-accent/5">
-            <CardHeader>
-              <CardTitle className="font-serif text-xl flex items-center gap-2">
-                <ScrollText className="w-5 h-5 text-accent" />
-                Deśa · For Sankalpam
+                  {sessionWindows && (
+                    <>
+                      <Separator />
+                      <div>
+                        <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+                          Sandhya Windows
+                        </div>
+                        <div className="flex gap-2">
+                          <SessionChip label="Pratah" timeWindow={sessionWindows.pratah} isActive={activeSession === "pratah"} />
+                          <SessionChip label="Madhyahna" timeWindow={sessionWindows.madhyahna} isActive={activeSession === "madhyahna"} />
+                          <SessionChip label="Sayam" timeWindow={sessionWindows.sayam} isActive={activeSession === "sayam"} />
+                        </div>
+                        {activeSession !== "none" && (
+                          <p className="text-xs text-secondary font-medium mt-2 text-center">
+                            {activeSession === "pratah" && "🌅 Pratah Sandhya is active now"}
+                            {activeSession === "madhyahna" && "☀️ Madhyahna Sandhya is active now"}
+                            {activeSession === "sayam" && "🌇 Sayam Sandhya is active now"}
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : sunLoading ? (
+                <p className="text-sm text-muted-foreground text-center py-2">Fetching sun times…</p>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">Sun times unavailable</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 2 ── Deśa / Sankalpam ── */}
+          <Card className="border-accent/30 bg-accent/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-serif text-lg flex items-center gap-2">
+                <ScrollText className="w-4 h-4 text-accent" />
+                Deśa · Sankalpam
               </CardTitle>
             </CardHeader>
             <CardContent>
               {sankalpamDesha ? (
-                <div className="space-y-3">
-                  <p className="text-base leading-relaxed text-foreground font-medium italic">
-                    {sankalpamDesha.fullText}...
+                <div className="space-y-2">
+                  <p className="text-[14px] leading-relaxed text-foreground font-medium italic">
+                    {sankalpamDesha.fullText}…
                   </p>
-                  <div className="space-y-1">
+                  <div className="space-y-0.5 pt-1">
                     {sankalpamDesha.lines.map((line, i) => (
-                      <div
-                        key={i}
-                        className="flex items-start gap-2 text-sm text-muted-foreground"
-                      >
-                        <span className="text-accent font-bold mt-0.5 flex-shrink-0">{i + 1}.</span>
+                      <div key={i} className="flex items-start gap-2 text-[12px] text-muted-foreground">
+                        <span className="text-accent font-bold flex-shrink-0">{i + 1}.</span>
                         <span>{line}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground italic">
-                  Set your location to see the Sankalpam deśa text.
-                </p>
+                <p className="text-sm text-muted-foreground italic">Set location to see Sankalpam deśa.</p>
               )}
             </CardContent>
           </Card>
 
-          {/* ── Core Five Elements ── */}
-          <Card className="border-2 border-primary/20 shadow-md">
-            <CardHeader>
-              <CardTitle className="font-serif text-xl">The Five Elements</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Tithi</div>
-                <div className="flex items-baseline gap-3">
-                  <span className="font-serif text-2xl font-semibold text-foreground">
-                    {panchang.tithi}
-                  </span>
-                  <Badge variant="outline" className="text-xs">
-                    {panchang.paksha} Paksha
-                  </Badge>
-                </div>
-                {panchang.tithiSegments.length > 0 && (
-                  <div className="mt-2 text-sm text-muted-foreground space-y-1">
-                    {panchang.tithiSegments.map((seg, i) => (
-                      <div key={i}>
-                        {seg.name} until{" "}
-                        <span className="font-medium text-foreground">{seg.upto}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Nakshatra</div>
-                <div className="font-serif text-2xl font-semibold text-foreground">
-                  {panchang.nakshatra}
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Yoga</div>
-                <div className="font-serif text-2xl font-semibold text-foreground">
-                  {panchang.yoga}
-                </div>
-                {panchang.yogaSegments.length > 0 && (
-                  <div className="mt-2 text-sm text-muted-foreground space-y-1">
-                    {panchang.yogaSegments.map((seg, i) => (
-                      <div key={i}>
-                        {seg.name} until{" "}
-                        <span className="font-medium text-foreground">{seg.upto}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Karana</div>
-                <div className="font-serif text-2xl font-semibold text-foreground">
-                  {panchang.karana}
-                </div>
-                {panchang.karanaSegments.length > 0 && (
-                  <div className="mt-2 text-sm text-muted-foreground space-y-1">
-                    {panchang.karanaSegments.slice(0, 3).map((seg, i) => (
-                      <div key={i}>
-                        {seg.name} until{" "}
-                        <span className="font-medium text-foreground">{seg.upto}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Vara</div>
-                <div className="flex items-baseline gap-3">
-                  <span className="font-serif text-2xl font-semibold text-foreground">
-                    {panchang.vara}
-                  </span>
-                  <span className="text-sm text-muted-foreground">({panchang.varaShort})</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* ── Temporal Context ── */}
+          {/* 3 ── Cycles of Time ── */}
           <Card>
-            <CardHeader>
-              <CardTitle className="font-serif text-xl">Cycles of Time</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="font-serif text-lg">Cycles of Time</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Masa</div>
-                <div className="font-medium text-lg">{panchang.masa}</div>
+            <CardContent className="py-0 pb-3">
+              <Row label="Samvatsara" value={`${panchang.samvatsara} (Samvat ${panchang.samvat})`} />
+              <Row label="Ayana" value={panchang.ayana} />
+              <Row label="Ritu" value={panchang.ritu} />
+              <Row label="Masa" value={panchang.masa} />
+              <Row label="Solar Sign" value={panchang.solarSign} />
+            </CardContent>
+          </Card>
+
+          {/* 4 ── Five Elements ── */}
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-serif text-lg">Five Elements</CardTitle>
+            </CardHeader>
+            <CardContent className="py-0 pb-3">
+              <SegmentRow
+                label="Tithi"
+                name={`${panchang.tithi}`}
+                segments={panchang.tithiSegments}
+              />
+              <div className="flex items-center justify-between gap-3 py-2 border-b border-border/50">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">Paksha</span>
+                <Badge variant="outline" className="text-xs">{panchang.paksha} Paksha</Badge>
               </div>
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Ritu</div>
-                <div className="font-medium text-lg">{panchang.ritu}</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Ayana</div>
-                <div className="font-medium text-lg">{panchang.ayana}</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Solar Sign</div>
-                <div className="font-medium text-lg">{panchang.solarSign}</div>
-              </div>
-              <div className="col-span-2">
-                <div className="text-sm text-muted-foreground mb-1">Samvatsara</div>
-                <div className="font-medium text-lg">
-                  {panchang.samvatsara} (Samvat {panchang.samvat})
-                </div>
+              <Row label="Nakshatra" value={panchang.nakshatra} />
+              <SegmentRow
+                label="Yoga"
+                name={panchang.yoga}
+                segments={panchang.yogaSegments}
+              />
+              <SegmentRow
+                label="Karana"
+                name={panchang.karana}
+                segments={panchang.karanaSegments.slice(0, 2)}
+              />
+              <div className="flex items-baseline justify-between gap-3 py-2">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">Vara</span>
+                <span className="text-[15px] font-medium text-right">
+                  {panchang.vara}{" "}
+                  <span className="text-muted-foreground text-[12px]">({panchang.varaShort})</span>
+                </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* ── Auspicious Time ── */}
-          {timeWindows && (
-            <Card className="border-2 border-secondary/30 bg-secondary/5">
-              <CardHeader>
-                <CardTitle className="font-serif text-xl text-secondary">Auspicious Time</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Abhijit Muhurta</div>
-                  <div className="font-medium text-lg text-secondary">
-                    {formatTimeWindow(timeWindows.abhijitMuhurta)}
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    The most reliable auspicious window of the day, around solar noon.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ── Inauspicious Times ── */}
-          {timeWindows && (
+          {/* 5 ── Muhurta Timings ── */}
+          {timeWindows ? (
             <Card>
-              <CardHeader>
-                <CardTitle className="font-serif text-xl">Inauspicious Times</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Traditionally avoided for new beginnings and important work.
-                </p>
+              <CardHeader className="pb-2">
+                <CardTitle className="font-serif text-lg">Muhurta Timings</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">Rahu Kalam</div>
-                  <div className="font-medium">{formatTimeWindow(timeWindows.rahuKalam)}</div>
-                </div>
-                <Separator />
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">Gulika Kalam</div>
-                  <div className="font-medium">{formatTimeWindow(timeWindows.gulikaKalam)}</div>
-                </div>
-                <Separator />
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">Yamagandam</div>
-                  <div className="font-medium">{formatTimeWindow(timeWindows.yamagandam)}</div>
-                </div>
-                {timeWindows.durMuhurtam.length > 0 && (
-                  <>
-                    <Separator />
-                    <div>
-                      <div className="text-sm text-muted-foreground mb-1">Dur Muhurtam</div>
-                      {timeWindows.durMuhurtam.map((win, i) => (
-                        <div key={i} className="font-medium">
-                          {formatTimeWindow(win)}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
+              <CardContent className="py-0 pb-3">
+                <TimeRow label="Abhijit Muhurta" window={timeWindows.abhijitMuhurta} tone="auspicious" timeZone={timeZone} />
+                <TimeRow label="Rahu Kalam" window={timeWindows.rahuKalam} tone="inauspicious" timeZone={timeZone} />
+                <TimeRow label="Gulika Kalam" window={timeWindows.gulikaKalam} tone="inauspicious" timeZone={timeZone} />
+                <TimeRow label="Yamagandam" window={timeWindows.yamagandam} tone="inauspicious" timeZone={timeZone} />
+                {timeWindows.durMuhurtam.map((win, i) => (
+                  <TimeRow
+                    key={i}
+                    label={timeWindows.durMuhurtam.length > 1 ? `Dur Muhurtam ${i + 1}` : "Dur Muhurtam"}
+                    window={win}
+                    tone="inauspicious"
+                    timeZone={timeZone}
+                  />
+                ))}
                 {panchang.varjyam && (
-                  <>
-                    <Separator />
-                    <div>
-                      <div className="text-sm text-muted-foreground mb-1">Varjyam</div>
-                      <div className="font-medium">{formatTimeWindow(panchang.varjyam)}</div>
-                    </div>
-                  </>
+                  <TimeRow label="Varjyam" window={panchang.varjyam} tone="inauspicious" timeZone={timeZone} />
                 )}
               </CardContent>
             </Card>
-          )}
+          ) : sunLoading ? (
+            <Card className="opacity-60">
+              <CardContent className="py-4 text-center text-sm text-muted-foreground">
+                Loading muhurta timings…
+              </CardContent>
+            </Card>
+          ) : null}
+
         </div>
       )}
     </div>
