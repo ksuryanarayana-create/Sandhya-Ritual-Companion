@@ -7,7 +7,7 @@ import {
   getLang,
 } from "@/lib/storage";
 import type { Lang } from "@/lib/storage";
-import { heading, label, val, pakshaLabel, varaDisplay, ui } from "@/lib/i18n";
+import { heading, label, val, pakshaLabel, varaDisplay, ui, relativeDays } from "@/lib/i18n";
 import { calculatePanchang } from "@/lib/panchang";
 import {
   fetchSunTimes,
@@ -16,10 +16,12 @@ import {
   getYamagandam,
   getAbhijitMuhurta,
   getDurMuhurtam,
+  getAmritKalam,
   getSessionWindows,
   getActiveSession,
   formatTime,
 } from "@/lib/sunriseSunset";
+import type { AmritKalam } from "@/lib/sunriseSunset";
 import { buildSankalpamDesha } from "@/lib/sankalpam";
 import { getTimeZone, getZonedWeekday } from "@/lib/timezone";
 import { getTodaySignificance } from "@/lib/guidance";
@@ -132,10 +134,12 @@ function GuidanceStrip({
   significance,
   upcomingNext,
   selectedDate,
+  lang,
 }: {
   significance: TodaySignificance;
   upcomingNext: UpcomingEvent[];
   selectedDate: string;
+  lang: Lang;
 }) {
   const [expanded, setExpanded] = useState(false);
   const fromDate = parseDateString(selectedDate);
@@ -146,10 +150,12 @@ function GuidanceStrip({
   return (
     <div className="border-t border-border/40 pt-3 mt-1 space-y-2">
 
-      {/* ── Important today (drawn entirely from significance — the accurate source) ── */}
+      {/* ── Important today ── */}
       {significance.hasSignificance && (
         <div className="space-y-1.5">
-          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Important today</div>
+          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            {ui(lang, "importantToday")}
+          </div>
 
           {/* Festival */}
           {significance.festival && (
@@ -159,7 +165,7 @@ function GuidanceStrip({
                 <span className="font-semibold">{significance.festival.name}</span>
                 {significance.isFasting && (
                   <span className="ml-2 text-[11px] font-medium bg-white/60 rounded px-1.5 py-0.5 border border-current/20">
-                    🌿 Fasting day
+                    🌿 {ui(lang, "fastingDay")}
                   </span>
                 )}
                 <p className="text-[12px] opacity-80 mt-0.5 leading-snug">{significance.festival.note}</p>
@@ -182,7 +188,7 @@ function GuidanceStrip({
               <div>
                 {significance.isFasting && (
                   <span className="text-[11px] font-medium bg-white/60 rounded px-1.5 py-0.5 border border-current/20 mr-2">
-                    🌿 Fasting day
+                    🌿 {ui(lang, "fastingDay")}
                   </span>
                 )}
                 <span className="text-[13px] leading-snug">{significance.tithiNote}</span>
@@ -207,7 +213,9 @@ function GuidanceStrip({
       {/* ── Upcoming next ── */}
       {upcomingNext.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Upcoming next</div>
+          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            {ui(lang, "upcomingNext")}
+          </div>
 
           {/* First event always visible */}
           {(() => {
@@ -218,17 +226,19 @@ function GuidanceStrip({
                 <div className="flex items-center gap-2 text-[13px]">
                   <span>{EVENT_ICONS[ev.kind] ?? "📅"}</span>
                   <span className="font-medium">{ev.label}</span>
-                  <span className="text-muted-foreground">
-                    {days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}
-                  </span>
-                  {ev.isFasting && <span className="text-[11px] text-muted-foreground">· fasting</span>}
+                  <span className="text-muted-foreground">{relativeDays(lang, days)}</span>
+                  {ev.isFasting && (
+                    <span className="text-[11px] text-muted-foreground">· {ui(lang, "fasting")}</span>
+                  )}
                 </div>
                 {upcomingNext.length > 1 && (
                   <button
                     onClick={() => setExpanded(e => !e)}
                     className="flex items-center gap-1 text-[11px] text-primary hover:opacity-80 transition-opacity shrink-0"
                   >
-                    {expanded ? "less" : `+${upcomingNext.length - 1} more`}
+                    {expanded
+                      ? (lang === "en" ? "less" : "తక్కువ")
+                      : `+${upcomingNext.length - 1} ${lang === "en" ? "more" : "మరిన్ని"}`}
                     {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                   </button>
                 )}
@@ -242,12 +252,14 @@ function GuidanceStrip({
               <span>{EVENT_ICONS[ev.kind] ?? "📅"}</span>
               <span className="font-medium">{ev.label}</span>
               <span className="text-muted-foreground text-[12px]">· {ev.dateStr}</span>
-              {ev.isFasting && <span className="text-[11px] text-muted-foreground">· fasting</span>}
+              {ev.isFasting && (
+                <span className="text-[11px] text-muted-foreground">· {ui(lang, "fasting")}</span>
+              )}
             </div>
           ))}
 
           <Link href="/upcoming" className="text-[11px] text-primary hover:opacity-80 inline-flex items-center gap-1 mt-0.5">
-            See all 90 days →
+            {ui(lang, "seeAll90Days")}
           </Link>
         </div>
       )}
@@ -275,6 +287,7 @@ export default function Today() {
     rahuKalam: TimeWindow; gulikaKalam: TimeWindow; yamagandam: TimeWindow;
     abhijitMuhurta: TimeWindow; durMuhurtam: TimeWindow[];
   } | null>(null);
+  const [amritKalam, setAmritKalam] = useState<AmritKalam | null>(null);
   const [sessionWindows, setSessionWindows] = useState<SessionWindows | null>(null);
   const [activeSession, setActiveSession]   = useState<ActiveSession>("none");
 
@@ -285,6 +298,7 @@ export default function Today() {
     setPanchangLoading(true);
     setSunTimes(null);
     setTimeWindows(null);
+    setAmritKalam(null);
     setSessionWindows(null);
     setSignificance(null);
     setUpcomingNext([]);
@@ -304,17 +318,21 @@ export default function Today() {
     setSignificance(sig);
 
     // Compute events for the next 30 days from selectedDate
-    const allEvents = getUpcomingEvents(date, tz, 30);
+    const allEvents = getUpcomingEvents(date, tz, 30, lang);
     // Upcoming: strictly in the future (tomorrow+)
     const upcoming = allEvents.filter(ev => daysUntil(ev.date, date) > 0);
     setUpcomingNext(upcoming);
 
     setPanchangLoading(false);
 
-    // ── Sun times (async) ────────────────────────────────────────────────────
+    // ── Sun times + Amrit Kalam (async) ─────────────────────────────────────
     setSunLoading(true);
     try {
-      const st = await fetchSunTimes(loc.lat, loc.lng, date);
+      const nextDate = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+      const [st, nextSt] = await Promise.all([
+        fetchSunTimes(loc.lat, loc.lng, date),
+        fetchSunTimes(loc.lat, loc.lng, nextDate),
+      ]);
       setSunTimes(st);
       const weekday = getZonedWeekday(date, tz);
       setTimeWindows({
@@ -324,6 +342,7 @@ export default function Today() {
         abhijitMuhurta: getAbhijitMuhurta(st),
         durMuhurtam: getDurMuhurtam(st, weekday),
       });
+      setAmritKalam(getAmritKalam(st, nextSt.sunrise, weekday));
       setSessionWindows(getSessionWindows(st, tz));
       setActiveSession(dateStr === todayDateString() ? getActiveSession(new Date(), st) : "none");
     } catch (err) {
@@ -398,7 +417,7 @@ export default function Today() {
 
           {/* Title row */}
           <div className="flex items-center justify-between">
-            <h1 className="font-serif text-3xl font-semibold text-foreground">Today</h1>
+            <h1 className="font-serif text-3xl font-semibold text-foreground">{ui(lang, "todayTitle")}</h1>
             {activeLoc && (
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <MapPin className="w-4 h-4" /><span>{activeLoc.city}</span>
@@ -417,7 +436,7 @@ export default function Today() {
             {!isToday && (
               <button onClick={() => handleDateChange(todayDateString())}
                 className="text-xs text-primary underline underline-offset-2 hover:opacity-80 whitespace-nowrap">
-                Back to today
+                {ui(lang, "backToToday")}
               </button>
             )}
           </div>
@@ -447,9 +466,10 @@ export default function Today() {
           {/* Date string */}
           {activeLoc && (
             <p className="text-sm text-muted-foreground">
-              {parseDateString(selectedDate).toLocaleDateString("en-IN", {
-                weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone,
-              })}
+              {parseDateString(selectedDate).toLocaleDateString(
+                lang === "en" ? "en-IN" : "te-IN",
+                { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone }
+              )}
             </p>
           )}
 
@@ -459,6 +479,7 @@ export default function Today() {
               significance={significance}
               upcomingNext={upcomingNext}
               selectedDate={selectedDate}
+              lang={lang}
             />
           )}
         </div>
@@ -469,7 +490,7 @@ export default function Today() {
         <div className="flex items-center justify-center py-24">
           <div className="text-center space-y-3">
             <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
-            <p className="text-sm text-muted-foreground">Calculating panchang…</p>
+            <p className="text-sm text-muted-foreground">{ui(lang, "calculatingPanchang")}</p>
           </div>
         </div>
       )}
@@ -619,12 +640,18 @@ export default function Today() {
                   />
                 ))}
                 {panchang.varjyam && <TimeRow lbl={label(lang, "varjyam")} window={panchang.varjyam} timeZone={timeZone} />}
+                {amritKalam && (
+                  <>
+                    <TimeRow lbl={label(lang, "amritKalamDay")}   window={amritKalam.day}   timeZone={timeZone} />
+                    <TimeRow lbl={label(lang, "amritKalamNight")} window={amritKalam.night} timeZone={timeZone} />
+                  </>
+                )}
               </CardContent>
             </Card>
           ) : sunLoading ? (
             <Card className={`${PLAIN} opacity-60`}>
               <CardContent className="py-4 text-center text-sm text-muted-foreground">
-                {heading(lang, "muhurta").primary} · Loading…
+                {heading(lang, "muhurta").primary} · {lang === "en" ? "Loading…" : "లోడవుతున్నాం…"}
               </CardContent>
             </Card>
           ) : null}

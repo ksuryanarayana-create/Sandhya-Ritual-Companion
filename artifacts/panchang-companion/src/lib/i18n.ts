@@ -49,14 +49,16 @@ const LABELS: Record<string, { en: string; te: string }> = {
   yoga:         { en: "Yoga",             te: "యోగం" },
   karana:       { en: "Karana",           te: "కరణం" },
   vara:         { en: "Vara",             te: "వారం" },
-  abhijit:      { en: "Abhijit Muhurta",  te: "అభిజిత్ ముహూర్తం" },
-  rahuKalam:    { en: "Rahu Kalam",       te: "రాహు కాలం" },
-  gulikaKalam:  { en: "Gulika Kalam",     te: "గుళిక కాలం" },
-  yamagandam:   { en: "Yamagandam",       te: "యమగండం" },
-  durMuhurtam:  { en: "Dur Muhurtam",     te: "దుర్ముహూర్తం" },
-  durMuhurtam1: { en: "Dur Muhurtam 1",   te: "దుర్ముహూర్తం ౧" },
-  durMuhurtam2: { en: "Dur Muhurtam 2",   te: "దుర్ముహూర్తం ౨" },
-  varjyam:      { en: "Varjyam",          te: "వర్జ్యం" },
+  abhijit:        { en: "Abhijit Muhurta",    te: "అభిజిత్ ముహూర్తం" },
+  rahuKalam:      { en: "Rahu Kalam",         te: "రాహు కాలం" },
+  gulikaKalam:    { en: "Gulika Kalam",       te: "గుళిక కాలం" },
+  yamagandam:     { en: "Yamagandam",         te: "యమగండం" },
+  durMuhurtam:    { en: "Dur Muhurtam",       te: "దుర్ముహూర్తం" },
+  durMuhurtam1:   { en: "Dur Muhurtam 1",     te: "దుర్ముహూర్తం ౧" },
+  durMuhurtam2:   { en: "Dur Muhurtam 2",     te: "దుర్ముహూర్తం ౨" },
+  varjyam:        { en: "Varjyam",            te: "వర్జ్యం" },
+  amritKalamDay:  { en: "Amrit Kalam (Day)",  te: "అమృత కాలం (పగలు)" },
+  amritKalamNight:{ en: "Amrit Kalam (Night)",te: "అమృత కాలం (రాత్రి)" },
   sunrise:      { en: "Sunrise",          te: "సూర్యోదయం" },
   sunset:       { en: "Sunset",           te: "సూర్యాస్తమయం" },
   pratah:       { en: "Pratah",           te: "ప్రాతః" },
@@ -203,6 +205,7 @@ export function varaDisplay(lang: Lang, vara: string, varaShort: string): string
 // ─── UI strings (page copy) ───────────────────────────────────────────────────
 
 const UI_STRINGS: Record<string, { en: string; te: string }> = {
+  // Upcoming page
   upcomingEvents:        { en: "Upcoming Events",      te: "రాబోయే పండుగలు" },
   setLocationToSeeEvents:{ en: "Set your location to see the next 90 days of important panchang events.", te: "మీ స్థానాన్ని సెట్ చేయండి — రాబోయే 90 రోజుల ముఖ్యమైన పంచాంగ వివరాలు చూడండి." },
   setYourLocation:       { en: "Set Your Location",    te: "స్థానం సెట్ చేయండి" },
@@ -210,6 +213,18 @@ const UI_STRINGS: Record<string, { en: string; te: string }> = {
   upcoming:              { en: "Upcoming",             te: "రాబోయే" },
   next90Days:            { en: "The next 90 days of important events", te: "రాబోయే 90 రోజుల ముఖ్యమైన వివరాలు" },
   noEventsFound:         { en: "No upcoming events found.", te: "రాబోయే వివరాలేవీ కనిపించడం లేదు." },
+  // Today page chrome
+  todayTitle:            { en: "Today",                te: "ఈ రోజు" },
+  backToToday:           { en: "Back to today",        te: "ఈ రోజుకి తిరిగి" },
+  importantToday:        { en: "Important today",      te: "ఈ రోజు విశేషం" },
+  fastingDay:            { en: "Fasting day",          te: "ఉపవాస దినం" },
+  upcomingNext:          { en: "Upcoming next",        te: "రాబోయే" },
+  fasting:               { en: "fasting",              te: "ఉపవాసం" },
+  seeAll90Days:          { en: "See all 90 days →",   te: "90 రోజులు చూడండి →" },
+  calculatingPanchang:   { en: "Calculating panchang…",te: "పంచాంగం లెక్కిస్తున్నాం…" },
+  fetchingSunTimes:      { en: "Fetching sun times…",  te: "సూర్యోదయ సమయాలు తెస్తున్నాం…" },
+  sunTimesUnavailable:   { en: "Sun times unavailable",te: "సూర్యోదయ సమయాలు అందుబాటులో లేవు" },
+  // Sankalpam
   setLocationSankalpam:  { en: "Set location to see Sankalpam deśa.", te: "సంకల్పం చూడటానికి స్థానం సెట్ చేయండి." },
 };
 
@@ -219,4 +234,16 @@ export function ui(lang: Lang, key: string): string {
   if (!s) return key;
   if (lang === "en") return s.en;
   return s.te; // both 'te' and 'te-en' show Telugu UI copy
+}
+
+/** Returns a relative day label: "today", "tomorrow", or "in N days" (Telugu-aware). */
+export function relativeDays(lang: Lang, days: number): string {
+  if (lang === "en") {
+    if (days === 0) return "today";
+    if (days === 1) return "tomorrow";
+    return `in ${days} days`;
+  }
+  if (days === 0) return "ఈ రోజు";
+  if (days === 1) return "రేపు";
+  return `${days} రోజుల్లో`;
 }
