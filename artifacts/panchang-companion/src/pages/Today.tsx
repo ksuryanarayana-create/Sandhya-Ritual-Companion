@@ -570,9 +570,8 @@ export default function Today() {
             </CardHeader>
             <CardContent>
               {sankalpamDesha ? (
-                <div className="space-y-2">
-                  <p className="text-[14px] leading-relaxed text-foreground font-medium italic">{sankalpamDesha.fullText}…</p>
-                  <div className="space-y-0.5 pt-1">
+                <div className="space-y-0.5">
+                  <div className="space-y-0.5">
                     {sankalpamDesha.lines.map((line, i) => (
                       <div key={i} className="flex items-start gap-2 text-[12px] text-muted-foreground">
                         <span className="text-accent font-bold flex-shrink-0">{i + 1}.</span>
