@@ -7,9 +7,10 @@ import {
   type SunTimes, type ActiveSession, type SessionWindows, type TimeWindow, type AmritKalam,
 } from "@/lib/sunriseSunset";
 import { calculatePanchang, type PanchangData, type PanchangSegment } from "@/lib/panchang";
-import { buildSankalpamDesha, type SankalpamDesha } from "@/lib/sankalpam";
+import { buildSankalpamDesha, buildSankalpamText, type SankalpamDesha, type SankalpamAllSandhyas } from "@/lib/sankalpam";
 import { toDateKey, type Location, getLocation } from "@/lib/storage";
 import { getTimeZone, getZonedWeekday } from "@/lib/timezone";
+import SankalpamSection from "@/components/SankalpamSection";
 
 /** A single recited panchang item, shown as a full-width row (label left, value right) for easy top-to-bottom reading in recitation order. */
 function PanchangItem({ label, value }: { label: string, value: string }) {
@@ -85,6 +86,7 @@ export default function Today() {
   const [sunTimes, setSunTimes] = useState<SunTimes | null>(null);
   const [panchang, setPanchang] = useState<PanchangData | null>(null);
   const [sankalpamDesha, setSankalpamDesha] = useState<SankalpamDesha | null>(null);
+  const [sankalpamText, setSankalpamText] = useState<SankalpamAllSandhyas | null>(null);
   const [activeSession, setActiveSession] = useState<ActiveSession>("none");
   const [sessionWindows, setSessionWindows] = useState<SessionWindows | null>(null);
   const [amritKalam, setAmritKalam] = useState<AmritKalam | null>(null);
@@ -110,10 +112,29 @@ export default function Today() {
     const loc = getLocation();
     setLocationState(loc);
     const tz = loc ? getTimeZone(loc.lat, loc.lng) : Intl.DateTimeFormat().resolvedOptions().timeZone;
-    setPanchang(calculatePanchang(today, tz));
-    if (loc) {
-      setSankalpamDesha(buildSankalpamDesha(loc.city, loc.lat, loc.lng, loc.state, loc.countryCode));
-    }
+    const pan = calculatePanchang(today, tz);
+    setPanchang(pan);
+    const desha = loc
+      ? buildSankalpamDesha(loc.city, loc.lat, loc.lng, loc.state, loc.countryCode)
+      : null;
+    if (loc) setSankalpamDesha(desha);
+    // Assemble the full Sankalpam text from today's panchang values.
+    // tithi/yoga/karana can transition mid-day; use the first (morning) segment.
+    setSankalpamText(
+      buildSankalpamText(
+        desha,
+        pan.samvatsara,
+        pan.ayana,
+        pan.ritu,
+        pan.masa,
+        pan.paksha,
+        pan.tithiSegments[0]?.name ?? pan.tithi,
+        pan.vara,
+        pan.nakshatra,
+        pan.yogaSegments[0]?.name ?? pan.yoga,
+        pan.karanaSegments[0]?.name ?? pan.karana,
+      ),
+    );
 
     if (loc) {
       setIsLoadingSun(true);
@@ -218,6 +239,13 @@ export default function Today() {
               <PanchangTransitionItem label="Karana" segments={panchang.karanaSegments} />
             </div>
           </section>
+        )}
+
+        {sankalpamText && (
+          <SankalpamSection
+            sankalpam={sankalpamText}
+            activeSession={activeSession === "none" ? undefined : activeSession}
+          />
         )}
 
         {panchang && (

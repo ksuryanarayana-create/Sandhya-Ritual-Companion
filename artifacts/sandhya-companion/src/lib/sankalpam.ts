@@ -340,6 +340,95 @@ export function buildSankalpamDesha(
   return { fullText: lines.join(", "), lines };
 }
 
+// ─── Full Sankalpam text assembly ────────────────────────────────────────────
+
+export type SandhyaType = "pratah" | "madhyahna" | "sayam";
+
+export interface SankalpamText {
+  /** Full text of the Sankalpam for reading aloud */
+  fullText: string;
+  /** Individual phrases/lines for display, one per Sanskrit unit */
+  phrases: string[];
+}
+
+export interface SankalpamAllSandhyas {
+  pratah: SankalpamText;
+  madhyahna: SankalpamText;
+  sayam: SankalpamText;
+}
+
+/**
+ * Build the complete Sankalpam text (spoken before Sandhya Vandanam) for all
+ * three sandhyas, filling in every panchang variable.
+ *
+ * The traditional recitation order:
+ *   [Deśa phrase]  asminn aharni  [Samvatsara] nāma samvatsare
+ *   [Ayana] ayane  [Ritu] ṛtau  [Masa] māse  [Paksha] pakṣe
+ *   [Tithi] tithau  [Vara] vāsare  [Nakshatra] nakṣatre
+ *   [Yoga] yoge  [Karana] karaṇe
+ *   evam guṇa viśeṣaṇa viśiṣṭāyāṃ śubha tithau
+ *   [Sandhya-specific invocation]
+ *
+ * @param desha       Result of buildSankalpamDesha (or null when no location is set)
+ * @param samvatsara  60-year cycle name (e.g. "Parabhava")
+ * @param ayana       "Uttarayana" or "Dakshinayana"
+ * @param ritu        Season name (e.g. "Varsha")
+ * @param masa        Lunar month name (e.g. "Ashadha")
+ * @param paksha      "Shukla" or "Krishna"
+ * @param tithi       Primary tithi name for today (first segment)
+ * @param vara        Sanskrit weekday name (e.g. "Guruvasara")
+ * @param nakshatra   Nakshatra name (e.g. "Rohini")
+ * @param yoga        Primary yoga for today (first segment)
+ * @param karana      Primary karana for today (first segment)
+ */
+export function buildSankalpamText(
+  desha: SankalpamDesha | null,
+  samvatsara: string,
+  ayana: string,
+  ritu: string,
+  masa: string,
+  paksha: string,
+  tithi: string,
+  vara: string,
+  nakshatra: string,
+  yoga: string,
+  karana: string,
+): SankalpamAllSandhyas {
+  const deshaPhrase = desha ? desha.fullText : "[deśa — set your location]";
+
+  const INVOCATIONS: Record<SandhyaType, string> = {
+    pratah:    "Prātaḥ sandhyāṃ upāsiṣye",
+    madhyahna: "Mādhyāhnikam sandhyāṃ upāsiṣye",
+    sayam:     "Sāyam sandhyāṃ upāsiṣye",
+  };
+
+  function build(sandhya: SandhyaType): SankalpamText {
+    const phrases = [
+      deshaPhrase,
+      "asminn aharni",
+      `${samvatsara} nāma samvatsare`,
+      `${ayana} ayane`,
+      `${ritu} ṛtau`,
+      `${masa} māse`,
+      `${paksha} pakṣe`,
+      `${tithi} tithau`,
+      `${vara} vāsare`,
+      `${nakshatra} nakṣatre`,
+      `${yoga} yoge`,
+      `${karana} karaṇe`,
+      "evam guṇa viśeṣaṇa viśiṣṭāyāṃ śubha tithau",
+      INVOCATIONS[sandhya],
+    ];
+    return { fullText: phrases.join(", "), phrases };
+  }
+
+  return {
+    pratah:    build("pratah"),
+    madhyahna: build("madhyahna"),
+    sayam:     build("sayam"),
+  };
+}
+
 // ─── North America deśa builder ───────────────────────────────────────────────
 
 /**
