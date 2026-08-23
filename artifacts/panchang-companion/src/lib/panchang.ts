@@ -123,14 +123,14 @@ export function getSolarSignIndex(sunLon: number): number {
 // ─── Names ──────────────────────────────────────────────────────────────────
 
 export const TITHI_NAMES: string[] = [
-  "Shukla Pratipada", "Shukla Dvitiya", "Shukla Tritiya", "Shukla Chaturthi",
-  "Shukla Panchami", "Shukla Shashti", "Shukla Saptami", "Shukla Ashtami",
-  "Shukla Navami", "Shukla Dashami", "Shukla Ekadashi", "Shukla Dwadashi",
-  "Shukla Trayodashi", "Shukla Chaturdashi", "Purnima",
-  "Krishna Pratipada", "Krishna Dvitiya", "Krishna Tritiya", "Krishna Chaturthi",
-  "Krishna Panchami", "Krishna Shashti", "Krishna Saptami", "Krishna Ashtami",
-  "Krishna Navami", "Krishna Dashami", "Krishna Ekadashi", "Krishna Dwadashi",
-  "Krishna Trayodashi", "Krishna Chaturdashi", "Amavasya",
+  "Pratipada", "Dvitiya", "Tritiya", "Chaturthi",
+  "Panchami", "Shashti", "Saptami", "Ashtami",
+  "Navami", "Dashami", "Ekadashi", "Dwadashi",
+  "Trayodashi", "Chaturdashi", "Purnima",
+  "Pratipada", "Dvitiya", "Tritiya", "Chaturthi",
+  "Panchami", "Shashti", "Saptami", "Ashtami",
+  "Navami", "Dashami", "Ekadashi", "Dwadashi",
+  "Trayodashi", "Chaturdashi", "Amavasya",
 ];
 
 export const NAKSHATRA_NAMES: string[] = [

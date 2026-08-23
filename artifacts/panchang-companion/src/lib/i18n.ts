@@ -143,6 +143,15 @@ const SOLAR_SIGN_TE: Record<string, string> = {
   Makara: "మకరం", Kumbha: "కుంభం", Meena: "మీనం",
 };
 
+const TITHI_TE: Record<string, string> = {
+  Pratipada: "ప్రతిపద", Dvitiya: "ద్వితీయ", Tritiya: "తృతీయ",
+  Chaturthi: "చతుర్థి", Panchami: "పంచమి", Shashti: "షష్ఠి",
+  Saptami: "సప్తమి", Ashtami: "అష్టమి", Navami: "నవమి",
+  Dashami: "దశమి", Ekadashi: "ఏకాదశి", Dwadashi: "ద్వాదశి",
+  Trayodashi: "త్రయోదశి", Chaturdashi: "చతుర్దశి",
+  Purnima: "పూర్ణిమ", Amavasya: "అమావాస్య",
+};
+
 // ─── Generic value translator ─────────────────────────────────────────────────
 
 type ValueKind =
@@ -159,7 +168,7 @@ const VALUE_MAPS: Record<ValueKind, Record<string, string>> = {
   ritu: RITU_TE,
   ayana: AYANA_TE,
   solarSign: SOLAR_SIGN_TE,
-  tithi: {},         // Telugu tithi names are complex regional variants; fall through to English
+  tithi: TITHI_TE,
   samvatsara: {},    // 60-year cycle names stay in Sanskrit regardless
 };
 

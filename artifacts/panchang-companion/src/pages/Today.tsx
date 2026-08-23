@@ -607,11 +607,18 @@ export default function Today() {
               <CardTitle><SectionTitle lang={lang} sectionKey="panchanga" /></CardTitle>
             </CardHeader>
             <CardContent className="py-0 pb-3">
-              <SegmentRow lbl={label(lang, "tithi")} name={panchang.tithi} segments={panchang.tithiSegments} />
               <div className="flex items-center justify-between gap-3 py-2 border-b border-border/50">
                 <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">{label(lang, "paksha")}</span>
                 <Badge variant="outline" className="text-xs">{pakshaLabel(lang, panchang.paksha)}</Badge>
               </div>
+              <SegmentRow
+                lbl={label(lang, "tithi")}
+                name={val(lang, "tithi", panchang.tithi)}
+                segments={panchang.tithiSegments.map(seg => ({
+                  ...seg,
+                  name: val(lang, "tithi", seg.name),
+                }))}
+              />
               <Row lbl={label(lang, "nakshatra")} value={val(lang, "nakshatra", panchang.nakshatra)} />
               <SegmentRow lbl={label(lang, "yoga")}   name={val(lang, "yoga", panchang.yoga)}   segments={panchang.yogaSegments} />
               <SegmentRow lbl={label(lang, "karana")} name={val(lang, "karana", panchang.karana)} segments={panchang.karanaSegments.slice(0, 2)} />
