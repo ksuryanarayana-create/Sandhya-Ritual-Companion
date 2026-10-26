@@ -2,33 +2,33 @@
   "name": "Telugu Panchang",
   "short_name": "Panchang",
   "description": "Daily Telugu panchang — tithi, nakshatra, muhurta timings for your location",
-  "start_url": "/panchang-companion/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#f5ede0",
   "theme_color": "#8B2500",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/panchang-companion/favicon.png",
+      "src": "/favicon.png",
       "sizes": "32x32",
       "type": "image/png"
     },
     {
-      "src": "/panchang-companion/apple-touch-icon.png",
+      "src": "/apple-touch-icon.png",
       "sizes": "180x180",
       "type": "image/png"
     },
     {
-      "src": "/panchang-companion/icon-192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/panchang-companion/icon-512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }
